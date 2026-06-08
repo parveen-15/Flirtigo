@@ -19,12 +19,16 @@ declare global {
 
 export default function SubscriptionPage() {
   const router = useRouter();
-  const { user, updateUser } = useAuthStore();
+  const { user, updateUser, isGuest } = useAuthStore();
   const [selectedPlan, setSelectedPlan] = useState<'premium_monthly' | 'premium_yearly'>('premium_monthly');
   const [loading, setLoading] = useState(false);
   const [currentSub, setCurrentSub] = useState<any>(null);
 
   useEffect(() => {
+    if (isGuest) {
+      router.replace('/login');
+      return;
+    }
     subscriptionsApi.getCurrent().then(res => setCurrentSub(res.data)).catch(() => {});
 
     // Load Razorpay script

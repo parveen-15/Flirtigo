@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
+import { GuestSessionService } from './guest-session.service';
 import { UsersModule } from '../users/users.module';
 import { OtpModule } from '../otp/otp.module';
 
@@ -24,7 +25,7 @@ import { OtpModule } from '../otp/otp.module';
     OtpModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, GoogleStrategy, JwtRefreshStrategy],
-  exports: [AuthService, JwtModule],
+  providers: [AuthService, JwtStrategy, GoogleStrategy, JwtRefreshStrategy, GuestSessionService],
+  exports: [AuthService, JwtModule, GuestSessionService],
 })
 export class AuthModule {}

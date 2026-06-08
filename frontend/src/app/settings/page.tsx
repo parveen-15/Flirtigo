@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -14,7 +14,7 @@ import { getInitials } from '@/lib/utils';
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user, updateUser, logout } = useAuthStore();
+  const { user, updateUser, logout, isGuest } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     displayName: user?.displayName || '',
@@ -22,6 +22,12 @@ export default function SettingsPage() {
     showCity: true,
     showState: true,
   });
+
+  useEffect(() => {
+    if (isGuest) router.replace('/login');
+  }, [isGuest, router]);
+
+  if (isGuest) return null;
 
   const handleSave = async () => {
     setLoading(true);

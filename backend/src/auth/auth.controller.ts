@@ -71,4 +71,18 @@ export class AuthController {
   getMe(@GetUser() user: any) {
     return user;
   }
+
+  @Post('auth/guest')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @HttpCode(HttpStatus.OK)
+  guestLogin(@RealIp() ip: string) {
+    return this.authService.guestLogin(ip);
+  }
+
+  @Post('auth/guest/logout')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  guestLogout(@GetUser('sub') guestId: string) {
+    return this.authService.guestLogout(guestId);
+  }
 }

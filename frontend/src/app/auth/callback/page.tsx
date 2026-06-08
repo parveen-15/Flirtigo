@@ -1,11 +1,11 @@
 'use client';
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { authApi } from '@/lib/api';
 import { Loader2, Heart } from 'lucide-react';
 
-export default function AuthCallbackPage() {
+function CallbackHandler() {
   const router = useRouter();
   const params = useSearchParams();
   const { setTokens, setUser } = useAuthStore();
@@ -34,13 +34,24 @@ export default function AuthCallbackPage() {
     }
   }, []);
 
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
-        <Heart className="w-7 h-7 text-white fill-white" />
-      </div>
-      <Loader2 className="w-8 h-8 text-brand-400 animate-spin" />
-      <span className="text-white/40 text-sm">Signing you in...</span>
+  return null;
+}
+
+const LoadingUI = () => (
+  <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
+      <Heart className="w-7 h-7 text-white fill-white" />
     </div>
+    <Loader2 className="w-8 h-8 text-brand-400 animate-spin" />
+    <span className="text-white/40 text-sm">Signing you in...</span>
+  </div>
+);
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense fallback={<LoadingUI />}>
+      <LoadingUI />
+      <CallbackHandler />
+    </Suspense>
   );
 }

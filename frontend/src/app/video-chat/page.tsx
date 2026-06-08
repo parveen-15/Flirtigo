@@ -5,7 +5,7 @@ import {
   Video, VideoOff, Mic, MicOff, PhoneOff, SkipForward,
   MessageSquare, Flag, Shield, Settings, ChevronRight, Heart,
   Users, MapPin, Wifi, WifiOff, Maximize, Minimize, RotateCcw,
-  Crown
+  Crown, UserRound, Zap
 } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
@@ -17,9 +17,10 @@ import { getSignalingSocket, getChatSocket } from '@/lib/socket';
 import { formatDuration } from '@/lib/utils';
 import { MatchType, Message } from '@/types';
 import { reportsApi } from '@/lib/api';
+import GuestConversionModal from '@/components/GuestConversionModal';
 
 export default function VideoChatPage() {
-  const { user } = useAuthStore();
+  const { user, isGuest, guestSkipsUsed, guestMatchesCount, guestSkipLimit, incrementGuestSkips, incrementGuestMatches } = useAuthStore();
   const { status, currentMatch, messages, mediaState, partnerMediaState, isPartnerTyping, sessionDuration, setMediaState, addMessage, setPartnerTyping, setPartnerMediaState, incrementDuration, resetDuration } = useMatchStore();
   const { joinQueue, skip, disconnect } = useMatching();
 
@@ -33,6 +34,8 @@ export default function VideoChatPage() {
   const [chatMessage, setChatMessage] = useState('');
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedMatchType, setSelectedMatchType] = useState<MatchType>('video');
+  const [showConversionModal, setShowConversionModal] = useState(false);
+  const [conversionTrigger, setConversionTrigger] = useState<'skip_limit' | 'match_count' | 'manual'>('manual');
 
   const signalingSocket = currentMatch ? getSignalingSocket(currentMatch.roomId) : null;
   const chatSocket = currentMatch ? getChatSocket(currentMatch.roomId) : null;
@@ -81,6 +84,22 @@ export default function VideoChatPage() {
     const interval = setInterval(incrementDuration, 1000);
     return () => clearInterval(interval);
   }, [status]);
+
+  // Track guest match and show conversion modal
+  useEffect(() => {
+    if (!isGuest || status !== 'connected' || !currentMatch) return;
+    incrementGuestMatches();
+  }, [currentMatch?.roomId]);
+
+  useEffect(() => {
+    if (isGuest && guestMatchesCount > 0 && guestMatchesCount % 3 === 0) {
+      const timer = setTimeout(() => {
+        setConversionTrigger('match_count');
+        setShowConversionModal(true);
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [guestMatchesCount]);
 
   // Chat socket events
   useEffect(() => {
@@ -138,6 +157,20 @@ export default function VideoChatPage() {
   };
 
   const handleSkip = () => {
+    if (isGuest && guestSkipsUsed >= guestSkipLimit) {
+      setConversionTrigger('skip_limit');
+      setShowConversionModal(true);
+      return;
+    }
+    if (isGuest) {
+      incrementGuestSkips();
+      const remaining = guestSkipLimit - guestSkipsUsed - 1;
+      if (remaining === 0) {
+        toast('Last skip! Create an account for unlimited.', { icon: '⚠️' });
+      } else if (remaining <= 2) {
+        toast(`${remaining} skip${remaining === 1 ? '' : 's'} remaining today`, { icon: '⏭️' });
+      }
+    }
     webRTC?.stopMedia();
     skip();
     setTimeout(() => joinQueue(selectedMatchType), 300);
@@ -176,7 +209,7 @@ export default function VideoChatPage() {
           <span className="text-lg font-bold gradient-text-purple hidden sm:block">Flirtigo</span>
         </Link>
 
-        <div className="flex items-center gap-4 text-xs text-white/40">
+        <div className="flex items-center gap-3 text-xs text-white/40">
           {currentMatch && (
             <div className="flex items-center gap-2 glass rounded-full px-3 py-1.5">
               <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
@@ -187,25 +220,61 @@ export default function VideoChatPage() {
             <Users className="w-3.5 h-3.5" />
             <span>~15k online</span>
           </div>
-          {!user?.isPremium && (
-            <Link href="/subscription">
-              <motion.div
+
+          {isGuest ? (
+            <>
+              {/* Guest skip counter */}
+              <div className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 border ${
+                guestSkipsUsed >= guestSkipLimit
+                  ? 'bg-red-500/15 border-red-500/30 text-red-400'
+                  : guestSkipsUsed >= guestSkipLimit - 2
+                    ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                    : 'bg-white/5 border-white/10 text-white/40'
+              }`}>
+                <Zap className="w-3 h-3" />
+                <span>{guestSkipLimit - guestSkipsUsed}/{guestSkipLimit} skips</span>
+              </div>
+              {/* Guest badge / upgrade CTA */}
+              <motion.button
                 whileHover={{ scale: 1.05 }}
-                className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500/20 to-amber-600/20 border border-amber-500/30 rounded-full px-3 py-1.5 text-amber-400 cursor-pointer"
+                onClick={() => { setConversionTrigger('manual'); setShowConversionModal(true); }}
+                className="flex items-center gap-1.5 bg-gradient-to-r from-brand-500/20 to-pink-500/20 border border-brand-500/30 rounded-full px-3 py-1.5 text-brand-300 cursor-pointer"
               >
-                <Crown className="w-3.5 h-3.5" />
-                <span>Upgrade</span>
-              </motion.div>
-            </Link>
+                <UserRound className="w-3.5 h-3.5" />
+                <span>Sign up free</span>
+              </motion.button>
+            </>
+          ) : (
+            !user?.isPremium && (
+              <Link href="/subscription">
+                <motion.div
+                  whileHover={{ scale: 1.05 }}
+                  className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500/20 to-amber-600/20 border border-amber-500/30 rounded-full px-3 py-1.5 text-amber-400 cursor-pointer"
+                >
+                  <Crown className="w-3.5 h-3.5" />
+                  <span>Upgrade</span>
+                </motion.div>
+              </Link>
+            )
           )}
         </div>
 
         <div className="flex items-center gap-2">
-          <Link href="/settings">
-            <button className="w-9 h-9 glass rounded-xl flex items-center justify-center hover:bg-white/10 transition-colors">
-              <Settings className="w-4 h-4 text-white/50" />
+          {isGuest ? (
+            <button
+              onClick={() => { setConversionTrigger('manual'); setShowConversionModal(true); }}
+              className="w-9 h-9 glass rounded-xl flex items-center justify-center hover:bg-white/10 transition-colors"
+              title="Sign in to access settings"
+            >
+              <Settings className="w-4 h-4 text-white/30" />
             </button>
-          </Link>
+          ) : (
+            <Link href="/settings">
+              <button className="w-9 h-9 glass rounded-xl flex items-center justify-center hover:bg-white/10 transition-colors">
+                <Settings className="w-4 h-4 text-white/50" />
+              </button>
+            </Link>
+          )}
         </div>
       </div>
 
@@ -565,6 +634,38 @@ export default function VideoChatPage() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Guest Conversion Modal */}
+      <GuestConversionModal
+        open={showConversionModal}
+        onClose={() => setShowConversionModal(false)}
+        trigger={conversionTrigger}
+      />
+
+      {/* Guest sticky bottom banner — shown after 2+ matches */}
+      <AnimatePresence>
+        {isGuest && guestMatchesCount >= 2 && !showConversionModal && (
+          <motion.div
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-4 pointer-events-none"
+          >
+            <div className="max-w-sm mx-auto glass border border-brand-500/25 rounded-2xl px-4 py-3 flex items-center gap-3 pointer-events-auto">
+              <Heart className="w-5 h-5 text-brand-400 flex-shrink-0 fill-brand-400/30" />
+              <p className="text-white/70 text-sm flex-1">Create a free account to unlock more features.</p>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => { setConversionTrigger('match_count'); setShowConversionModal(true); }}
+                className="text-brand-300 text-sm font-semibold whitespace-nowrap hover:text-brand-200 transition-colors"
+              >
+                Sign up →
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Report Modal */}
       <AnimatePresence>

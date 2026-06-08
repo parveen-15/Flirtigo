@@ -2,9 +2,11 @@ import { Injectable, UnauthorizedException, BadRequestException, ForbiddenExcept
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
+import { v4 as uuidv4 } from 'uuid';
 import { UsersService } from '../users/users.service';
 import { OtpService } from '../otp/otp.service';
 import { GeolocationService } from '../geolocation/geolocation.service';
+import { GuestSessionService } from './guest-session.service';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { GoogleAuthDto } from './dto/google-auth.dto';
@@ -17,6 +19,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly otpService: OtpService,
     private readonly geolocationService: GeolocationService,
+    private readonly guestSessionService: GuestSessionService,
   ) {}
 
   async sendOtp(dto: SendOtpDto, ip: string) {
@@ -104,6 +107,42 @@ export class AuthService {
   async logout(userId: string) {
     await this.usersService.clearSessions(userId);
     return { message: 'Logged out successfully' };
+  }
+
+  async guestLogin(ip: string) {
+    const guestId = uuidv4();
+    const guestNumber = Math.floor(Math.random() * 90000) + 10000;
+    const displayName = `Guest${guestNumber}`;
+    const locationData = await this.geolocationService.getLocationByIp(ip);
+
+    await this.guestSessionService.createSession(guestId, {
+      guestId,
+      displayName,
+      city: locationData?.city,
+      state: locationData?.state,
+      createdAt: Date.now(),
+      matchesCount: 0,
+    });
+
+    const accessToken = await this.jwtService.signAsync(
+      { sub: guestId, isGuest: true, displayName },
+      { secret: this.config.get('JWT_SECRET'), expiresIn: '24h' },
+    );
+
+    return {
+      accessToken,
+      guestId,
+      displayName,
+      city: locationData?.city,
+      state: locationData?.state,
+      isGuest: true,
+      skipLimit: this.guestSessionService.getSkipLimit(),
+    };
+  }
+
+  async guestLogout(guestId: string) {
+    await this.guestSessionService.deleteSession(guestId);
+    return { message: 'Guest session ended' };
   }
 
   private async generateTokens(userId: string, identifier: string) {

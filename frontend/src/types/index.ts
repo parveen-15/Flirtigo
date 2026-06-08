@@ -15,6 +15,16 @@ export interface User {
   interests?: string[];
   preferredMatchType?: MatchType;
   createdAt: string;
+  isGuest?: boolean;
+}
+
+export interface GuestSession {
+  accessToken: string;
+  guestId: string;
+  displayName: string;
+  city?: string;
+  state?: string;
+  skipLimit: number;
 }
 
 export type MatchType = 'video' | 'voice' | 'text';

@@ -1,0 +1,139 @@
+'use client';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Heart, X, Phone, Sparkles, Zap, Star } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/store/authStore';
+
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  trigger?: 'skip_limit' | 'match_count' | 'manual';
+}
+
+const PERKS = [
+  { icon: Zap, label: 'Unlimited skips every day' },
+  { icon: Star, label: 'Save chat preferences' },
+  { icon: Sparkles, label: 'Access advanced settings' },
+  { icon: Heart, label: 'Persistent profile & history' },
+];
+
+export default function GuestConversionModal({ open, onClose, trigger = 'manual' }: Props) {
+  const router = useRouter();
+  const { guestSkipsUsed, guestSkipLimit } = useAuthStore();
+
+  const headingMap = {
+    skip_limit: "You've used all your skips!",
+    match_count: 'Enjoying Flirtigo?',
+    manual: 'Create a free account',
+  };
+
+  const subMap = {
+    skip_limit: `Guests get ${guestSkipLimit} skips/day. Sign in to get unlimited skips.`,
+    match_count: "You've had a few great matches. Create an account to unlock everything.",
+    manual: 'Join for free and unlock all features instantly.',
+  };
+
+  const handleGoogle = () => {
+    window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/google`;
+  };
+
+  const handlePhone = () => {
+    router.push('/login?mode=phone');
+    onClose();
+  };
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[100] p-4"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ scale: 0.88, opacity: 0, y: 30 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+            transition={{ type: 'spring', stiffness: 280, damping: 26 }}
+            onClick={e => e.stopPropagation()}
+            className="w-full max-w-sm relative"
+          >
+            {/* Glow */}
+            <div className="absolute -inset-4 rounded-[40px] bg-gradient-to-br from-brand-500/30 to-pink-500/20 blur-2xl" />
+
+            <div className="relative glass rounded-3xl border border-white/10 overflow-hidden">
+              {/* Top gradient bar */}
+              <div className="h-1.5 w-full bg-gradient-to-r from-brand-600 via-pink-500 to-brand-400" />
+
+              <div className="p-6">
+                {/* Close */}
+                <button
+                  onClick={onClose}
+                  className="absolute top-4 right-4 w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+                >
+                  <X className="w-4 h-4 text-white/50" />
+                </button>
+
+                {/* Icon */}
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500 to-pink-500 flex items-center justify-center mb-5 shadow-[0_0_24px_rgba(168,85,247,0.5)]">
+                  <Heart className="w-7 h-7 text-white fill-white" />
+                </div>
+
+                <h2 className="text-xl font-black text-white mb-1.5">{headingMap[trigger]}</h2>
+                <p className="text-white/45 text-sm mb-5 leading-relaxed">{subMap[trigger]}</p>
+
+                {/* Perks */}
+                <div className="space-y-2.5 mb-6">
+                  {PERKS.map(({ icon: Icon, label }) => (
+                    <div key={label} className="flex items-center gap-3">
+                      <div className="w-7 h-7 rounded-lg bg-brand-500/15 flex items-center justify-center flex-shrink-0">
+                        <Icon className="w-3.5 h-3.5 text-brand-400" />
+                      </div>
+                      <span className="text-white/70 text-sm">{label}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Google */}
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleGoogle}
+                  className="w-full flex items-center justify-center gap-3 bg-white text-gray-800 font-semibold py-3.5 rounded-2xl mb-3 transition-all hover:shadow-lg"
+                >
+                  <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                  </svg>
+                  Sign in with Google
+                </motion.button>
+
+                {/* Phone */}
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handlePhone}
+                  className="w-full flex items-center justify-center gap-3 bg-white/[0.07] border border-white/10 text-white font-semibold py-3.5 rounded-2xl transition-all hover:bg-white/10"
+                >
+                  <Phone className="w-5 h-5 flex-shrink-0" />
+                  Sign in with Phone
+                </motion.button>
+
+                <button
+                  onClick={onClose}
+                  className="w-full text-white/25 text-xs mt-4 hover:text-white/40 transition-colors"
+                >
+                  Continue as guest
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}

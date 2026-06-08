@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import { Toaster } from 'react-hot-toast';
+import StoreHydrator from '@/components/StoreHydrator';
 import './globals.css';
 
 const inter = Inter({
@@ -24,7 +25,6 @@ export const metadata: Metadata = {
   },
   robots: { index: true, follow: true },
   manifest: '/manifest.json',
-  themeColor: '#a855f7',
 };
 
 export const viewport: Viewport = {
@@ -39,6 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={inter.variable}>
       <body className="animated-bg min-h-screen antialiased">
+        <StoreHydrator />
         <div className="relative z-10">
           {children}
         </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
-import { useRef, useState, useEffect, useMemo, memo } from 'react';
+import { useRef, useState, useEffect, memo } from 'react';
 import Link from 'next/link';
 import {
   Video, Mic, MessageSquare, Shield, Lock, MapPin,
@@ -45,7 +45,7 @@ const FEATURES = [
 ];
 
 const STEPS = [
-  { title: 'Create Account',  desc: 'Sign up with Google or your phone number in under 60 seconds. Confirm you are 18+.' },
+  { title: 'Join Instantly',  desc: 'Continue as a guest with one tap, or sign in with Google or your phone number. Confirm you are 18+.' },
   { title: 'Choose Mode',     desc: 'Select video, voice, or text chat. Hit Start and we instantly find you a match.' },
   { title: 'Start Chatting',  desc: 'Meet someone new from across India. Skip anytime if you want a fresh match.' },
 ];
@@ -54,19 +54,25 @@ const STEPS = [
 // PARTICLE FIELD
 // ─────────────────────────────────────────────────────────────────────────────
 
+type Particle = { id: number; x: number; y: number; size: number; dur: number; delay: number; opacity: number; color: string };
+
 const ParticleField = memo(function ParticleField() {
-  const particles = useMemo(() =>
-    Array.from({ length: 70 }, (_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      size: Math.random() * 2.4 + 0.6,
-      dur: Math.random() * 14 + 8,
-      delay: Math.random() * 7,
-      opacity: Math.random() * 0.45 + 0.07,
-      color: i % 5 === 0 ? '#ec4899' : i % 4 === 0 ? '#a78bfa' : i % 3 === 0 ? '#818cf8' : '#ffffff',
-    })),
-  []);
+  const [particles, setParticles] = useState<Particle[]>([]);
+
+  useEffect(() => {
+    setParticles(
+      Array.from({ length: 70 }, (_, i) => ({
+        id: i,
+        x: Math.random() * 100,
+        y: Math.random() * 100,
+        size: Math.random() * 2.4 + 0.6,
+        dur: Math.random() * 14 + 8,
+        delay: Math.random() * 7,
+        opacity: Math.random() * 0.45 + 0.07,
+        color: i % 5 === 0 ? '#ec4899' : i % 4 === 0 ? '#a78bfa' : i % 3 === 0 ? '#818cf8' : '#ffffff',
+      })),
+    );
+  }, []);
 
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
@@ -371,13 +377,13 @@ export default function LandingPage() {
                 Sign In
               </motion.button>
             </Link>
-            <Link href="/signup">
+            <Link href="/login">
               <motion.button
                 whileHover={{ scale: 1.05, boxShadow: '0 0 28px rgba(168,85,247,0.5)' }}
                 whileTap={{ scale: 0.95 }}
                 className="bg-gradient-to-r from-brand-600 to-brand-500 text-white text-[13px] font-bold px-5 py-2 rounded-full"
               >
-                Get Started
+                Start Free
               </motion.button>
             </Link>
           </div>
@@ -446,32 +452,53 @@ export default function LandingPage() {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 1.05 }}
-                className="flex flex-col sm:flex-row gap-3.5 justify-center lg:justify-start mb-10"
+                className="flex flex-col gap-3 justify-center lg:justify-start mb-10"
               >
-                <Link href="/signup">
+                {/* Primary CTA: Guest */}
+                <Link href="/login">
                   <motion.button
                     whileHover={{ scale: 1.04, boxShadow: '0 0 56px rgba(168,85,247,0.55)' }}
                     whileTap={{ scale: 0.96 }}
-                    className="group relative overflow-hidden bg-gradient-to-r from-brand-600 via-[#9f30f0] to-pink-500 text-white font-bold text-[15px] px-7 py-[14px] rounded-2xl shadow-2xl flex items-center justify-center gap-2.5"
+                    className="w-full group relative overflow-hidden bg-gradient-to-r from-brand-600 via-[#9f30f0] to-pink-500 text-white font-bold text-[15px] px-7 py-[14px] rounded-2xl shadow-2xl flex items-center justify-center gap-2.5"
                   >
-                    {/* Shimmer sweep */}
                     <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[200%] transition-transform duration-700 bg-gradient-to-r from-transparent via-white/18 to-transparent skew-x-[-18deg]" />
                     <Video className="w-[18px] h-[18px] relative z-10 flex-shrink-0" />
-                    <span className="relative z-10">Start Video Chat</span>
+                    <span className="relative z-10">Start Chatting Free</span>
                     <ChevronRight className="w-[18px] h-[18px] relative z-10 flex-shrink-0 group-hover:translate-x-1 transition-transform" />
                   </motion.button>
                 </Link>
 
-                <Link href="/signup">
-                  <motion.button
-                    whileHover={{ scale: 1.04, borderColor: 'rgba(168,85,247,0.45)', backgroundColor: 'rgba(255,255,255,0.07)' }}
-                    whileTap={{ scale: 0.96 }}
-                    className="flex items-center justify-center gap-2.5 bg-white/[0.05] backdrop-blur-sm border border-white/[0.1] text-white font-semibold text-[15px] px-7 py-[14px] rounded-2xl transition-all"
-                  >
-                    <MessageSquare className="w-[18px] h-[18px] text-brand-400 flex-shrink-0" />
-                    Text Chat
-                  </motion.button>
-                </Link>
+                <div className="flex gap-3">
+                  <Link href="/login" className="flex-1">
+                    <motion.button
+                      whileHover={{ scale: 1.04, borderColor: 'rgba(255,255,255,0.2)' }}
+                      whileTap={{ scale: 0.96 }}
+                      className="w-full flex items-center justify-center gap-2 bg-white/[0.06] backdrop-blur-sm border border-white/[0.1] text-white font-semibold text-[13px] px-4 py-3 rounded-xl transition-all"
+                    >
+                      <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                      </svg>
+                      Google
+                    </motion.button>
+                  </Link>
+                  <Link href="/login?mode=phone" className="flex-1">
+                    <motion.button
+                      whileHover={{ scale: 1.04, borderColor: 'rgba(255,255,255,0.2)' }}
+                      whileTap={{ scale: 0.96 }}
+                      className="w-full flex items-center justify-center gap-2 bg-white/[0.06] backdrop-blur-sm border border-white/[0.1] text-white font-semibold text-[13px] px-4 py-3 rounded-xl transition-all"
+                    >
+                      <MessageSquare className="w-4 h-4 text-brand-400 flex-shrink-0" />
+                      Phone
+                    </motion.button>
+                  </Link>
+                </div>
+
+                <p className="text-white/25 text-[11px] text-center lg:text-left">
+                  No credit card required · Guest mode available · 18+ only
+                </p>
               </motion.div>
 
               {/* Trust strip */}

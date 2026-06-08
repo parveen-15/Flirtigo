@@ -67,6 +67,15 @@ export function useMatching() {
       setStatus('idle');
     });
 
+    socket.on('skip_limit_warning', ({ remaining }: { remaining: number }) => {
+      toast(`${remaining} skip${remaining === 1 ? '' : 's'} remaining today as guest`, { icon: '⚠️' });
+    });
+
+    socket.on('skip_limit_reached', ({ message }: { message: string }) => {
+      toast.error(message, { duration: 5000 });
+      setStatus('idle');
+    });
+
     return () => {
       socket.off('queue_joined');
       socket.off('match_found');
@@ -74,6 +83,8 @@ export function useMatching() {
       socket.off('partner_skipped');
       socket.off('error');
       socket.off('skipped');
+      socket.off('skip_limit_warning');
+      socket.off('skip_limit_reached');
     };
   }, [setStatus, setMatch, clearMatch]);
 

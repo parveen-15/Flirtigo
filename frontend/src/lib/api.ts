@@ -79,6 +79,11 @@ export const authApi = {
   getMe: () => api.get('/api/auth/me'),
 };
 
+export const guestApi = {
+  createSession: () => api.post('/api/auth/guest'),
+  logout: () => api.post('/api/auth/guest/logout'),
+};
+
 export const usersApi = {
   getProfile: () => api.get('/api/users/profile'),
   updateProfile: (data: any) => api.patch('/api/users/profile', data),

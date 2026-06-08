@@ -9,6 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { MatchingService } from './matching.service';
 import { UsersService } from '../users/users.service';
+import { GuestSessionService } from '../auth/guest-session.service';
 import { v4 as uuidv4 } from 'uuid';
 
 @WebSocketGateway({
@@ -25,6 +26,7 @@ export class MatchingGateway implements OnGatewayConnection, OnGatewayDisconnect
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
+    private readonly guestSessionService: GuestSessionService,
   ) {}
 
   async handleConnection(client: Socket) {
@@ -34,7 +36,8 @@ export class MatchingGateway implements OnGatewayConnection, OnGatewayDisconnect
         secret: this.config.get('JWT_SECRET'),
       });
       client.data.userId = payload.sub;
-      this.logger.log(`Client connected: ${client.id} (user: ${payload.sub})`);
+      client.data.isGuest = !!payload.isGuest;
+      this.logger.log(`Client connected: ${client.id} (user: ${payload.sub}, guest: ${!!payload.isGuest})`);
     } catch {
       client.emit('error', { message: 'Unauthorized' });
       client.disconnect();
@@ -66,28 +69,48 @@ export class MatchingGateway implements OnGatewayConnection, OnGatewayDisconnect
     @MessageBody() data: { matchType: 'video' | 'voice' | 'text' },
   ) {
     const userId = client.data.userId;
+    const isGuest = client.data.isGuest;
     if (!userId) return;
 
-    const user = await this.usersService.findById(userId);
-    if (!user || user.status !== 'active') {
-      client.emit('error', { message: 'Account not active' });
-      return;
-    }
+    let displayName: string;
+    let city: string | undefined;
+    let state: string | undefined;
+    let isPremium = false;
+    let blockedUsers: string[] = [];
 
-    if (!user.age_verified) {
-      client.emit('error', { message: 'Age verification required' });
-      return;
+    if (isGuest) {
+      const session = await this.guestSessionService.getSession(userId);
+      if (!session) {
+        client.emit('error', { message: 'Guest session expired. Please refresh.' });
+        return;
+      }
+      displayName = session.displayName;
+      city = session.city;
+      state = session.state;
+    } else {
+      const user = await this.usersService.findById(userId);
+      if (!user || user.status !== 'active') {
+        client.emit('error', { message: 'Account not active' });
+        return;
+      }
+      if (!user.age_verified) {
+        client.emit('error', { message: 'Age verification required' });
+        return;
+      }
+      displayName = user.display_name;
+      city = user.show_city ? user.city : undefined;
+      state = user.show_state ? user.state : undefined;
+      isPremium = user.is_premium;
+      blockedUsers = await this.usersService.getBlockedUsers(userId);
     }
-
-    const blockedUsers = await this.usersService.getBlockedUsers(userId);
 
     const entry = {
       userId,
       socketId: client.id,
-      displayName: user.display_name,
-      city: user.show_city ? user.city : undefined,
-      state: user.show_state ? user.state : undefined,
-      isPremium: user.is_premium,
+      displayName,
+      city,
+      state,
+      isPremium,
       blockedUsers,
       joinedAt: Date.now(),
     };
@@ -100,18 +123,20 @@ export class MatchingGateway implements OnGatewayConnection, OnGatewayDisconnect
       const roomId = uuidv4();
       client.data.roomId = roomId;
 
-      // Notify both users
       const partnerSocket = (this.server.sockets as any).sockets?.get(partner.socketId);
-
       if (partnerSocket) {
         partnerSocket.data.roomId = roomId;
         partnerSocket.join(roomId);
       }
       client.join(roomId);
 
-      await this.matchingService.createMatch(userId, partner.userId, data.matchType, roomId);
+      if (!isGuest) {
+        await this.matchingService.createMatch(userId, partner.userId, data.matchType, roomId);
+      }
 
-      const myInfo = { displayName: user.display_name, city: entry.city, state: entry.state };
+      if (isGuest) await this.guestSessionService.incrementMatches(userId);
+
+      const myInfo = { displayName, city: entry.city, state: entry.state };
       const partnerInfo = { displayName: partner.displayName, city: partner.city, state: partner.state };
 
       client.emit('match_found', { roomId, matchType: data.matchType, partner: partnerInfo, role: 'caller' });
@@ -124,7 +149,24 @@ export class MatchingGateway implements OnGatewayConnection, OnGatewayDisconnect
   @SubscribeMessage('skip')
   async handleSkip(@ConnectedSocket() client: Socket) {
     const userId = client.data.userId;
+    const isGuest = client.data.isGuest;
     const roomId = client.data.roomId;
+
+    if (isGuest) {
+      const skipStatus = await this.guestSessionService.canSkip(userId);
+      if (!skipStatus.canSkip) {
+        client.emit('skip_limit_reached', {
+          message: 'Daily skip limit reached. Create a free account to unlock more.',
+          limit: this.guestSessionService.getSkipLimit(),
+        });
+        return;
+      }
+      const used = await this.guestSessionService.incrementSkips(userId);
+      const remaining = this.guestSessionService.getSkipLimit() - used;
+      if (remaining <= 2 && remaining > 0) {
+        client.emit('skip_limit_warning', { remaining, limit: this.guestSessionService.getSkipLimit() });
+      }
+    }
 
     if (roomId) {
       await this.matchingService.endMatch(roomId, userId);
