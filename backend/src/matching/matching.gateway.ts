@@ -150,24 +150,7 @@ export class MatchingGateway implements OnGatewayConnection, OnGatewayDisconnect
   @SubscribeMessage('skip')
   async handleSkip(@ConnectedSocket() client: Socket) {
     const userId = client.data.userId;
-    const isGuest = client.data.isGuest;
     const roomId = client.data.roomId;
-
-    if (isGuest) {
-      const skipStatus = await this.guestSessionService.canSkip(userId);
-      if (!skipStatus.canSkip) {
-        client.emit('skip_limit_reached', {
-          message: 'Daily skip limit reached. Create a free account to unlock more.',
-          limit: this.guestSessionService.getSkipLimit(),
-        });
-        return;
-      }
-      const used = await this.guestSessionService.incrementSkips(userId);
-      const remaining = this.guestSessionService.getSkipLimit() - used;
-      if (remaining <= 2 && remaining > 0) {
-        client.emit('skip_limit_warning', { remaining, limit: this.guestSessionService.getSkipLimit() });
-      }
-    }
 
     if (roomId) {
       await this.matchingService.endMatch(roomId, userId);

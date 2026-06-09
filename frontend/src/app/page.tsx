@@ -371,13 +371,13 @@ export default function LandingPage() {
           </nav>
 
           <div className="flex items-center gap-2">
-            <Link href="/login">
+            <Link href="/video-chat">
               <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
                 className="text-[13px] text-white/60 hover:text-white transition-colors px-4 py-2">
                 Sign In
               </motion.button>
             </Link>
-            <Link href="/login">
+            <Link href="/video-chat">
               <motion.button
                 whileHover={{ scale: 1.05, boxShadow: '0 0 28px rgba(168,85,247,0.5)' }}
                 whileTap={{ scale: 0.95 }}
@@ -455,7 +455,7 @@ export default function LandingPage() {
                 className="flex flex-col gap-3 justify-center lg:justify-start mb-10"
               >
                 {/* Primary CTA: Guest */}
-                <Link href="/login">
+                <Link href="/video-chat">
                   <motion.button
                     whileHover={{ scale: 1.04, boxShadow: '0 0 56px rgba(168,85,247,0.55)' }}
                     whileTap={{ scale: 0.96 }}
@@ -469,7 +469,7 @@ export default function LandingPage() {
                 </Link>
 
                 <div className="flex gap-3">
-                  <Link href="/login" className="flex-1">
+                  <Link href="/video-chat" className="flex-1">
                     <motion.button
                       whileHover={{ scale: 1.04, borderColor: 'rgba(255,255,255,0.2)' }}
                       whileTap={{ scale: 0.96 }}
@@ -484,7 +484,7 @@ export default function LandingPage() {
                       Google
                     </motion.button>
                   </Link>
-                  <Link href="/login?mode=phone" className="flex-1">
+                  <Link href="/video-chat" className="flex-1">
                     <motion.button
                       whileHover={{ scale: 1.04, borderColor: 'rgba(255,255,255,0.2)' }}
                       whileTap={{ scale: 0.96 }}
@@ -735,7 +735,7 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <Link href="/signup">
+              <Link href="/video-chat">
                 <button className="w-full glass border border-white/[0.1] text-white font-semibold py-3 rounded-xl hover:border-white/25 transition-all text-[14px]">
                   Get Started Free
                 </button>
@@ -771,7 +771,7 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <Link href="/signup">
+              <Link href="/video-chat">
                 <motion.button
                   whileHover={{ boxShadow: '0 0 40px rgba(168,85,247,0.55)' }}
                   className="w-full bg-gradient-to-r from-brand-600 to-brand-400 text-white font-bold py-3 rounded-xl transition-all text-[14px]"
