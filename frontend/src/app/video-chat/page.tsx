@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Video, VideoOff, Mic, MicOff, PhoneOff, SkipForward,
@@ -20,9 +21,18 @@ import { reportsApi } from '@/lib/api';
 import GuestConversionModal from '@/components/GuestConversionModal';
 
 export default function VideoChatPage() {
-  const { user, isGuest, guestSkipsUsed, guestMatchesCount, guestSkipLimit, incrementGuestSkips, incrementGuestMatches } = useAuthStore();
+  const router = useRouter();
+  const { user, isGuest, isAuthenticated, guestSkipsUsed, guestMatchesCount, guestSkipLimit, incrementGuestSkips, incrementGuestMatches } = useAuthStore();
   const { status, currentMatch, messages, mediaState, partnerMediaState, isPartnerTyping, sessionDuration, setMediaState, addMessage, setPartnerTyping, setPartnerMediaState, incrementDuration, resetDuration } = useMatchStore();
   const { joinQueue, skip, disconnect } = useMatching();
+
+  // Auth guard
+  useEffect(() => {
+    const { isAuthenticated: auth, isGuest: guest } = useAuthStore.getState();
+    if (!auth && !guest) {
+      router.replace('/login');
+    }
+  }, [router]);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -36,6 +46,18 @@ export default function VideoChatPage() {
   const [selectedMatchType, setSelectedMatchType] = useState<MatchType>('video');
   const [showConversionModal, setShowConversionModal] = useState(false);
   const [conversionTrigger, setConversionTrigger] = useState<'skip_limit' | 'match_count' | 'manual'>('manual');
+  const [gender, setGender] = useState<'male' | 'female' | undefined>(() => {
+    if (typeof window === 'undefined') return undefined;
+    const stored = localStorage.getItem('flirtigo-gender');
+    return (stored === 'male' || stored === 'female') ? stored : undefined;
+  });
+
+  const handleSetGender = (g: 'male' | 'female') => {
+    const next = gender === g ? undefined : g;
+    setGender(next);
+    if (next) localStorage.setItem('flirtigo-gender', next);
+    else localStorage.removeItem('flirtigo-gender');
+  };
 
   const signalingSocket = currentMatch ? getSignalingSocket(currentMatch.roomId) : null;
   const chatSocket = currentMatch ? getChatSocket(currentMatch.roomId) : null;
@@ -173,7 +195,7 @@ export default function VideoChatPage() {
     }
     webRTC?.stopMedia();
     skip();
-    setTimeout(() => joinQueue(selectedMatchType), 300);
+    setTimeout(() => joinQueue(selectedMatchType, gender), 300);
   };
 
   const handleReport = async (reason: string) => {
@@ -335,13 +357,44 @@ export default function VideoChatPage() {
                   </p>
                 </motion.div>
 
+                {/* Gender selector */}
+                <motion.div
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.25 }}
+                  className="flex items-center gap-2 mb-6"
+                >
+                  <span className="text-white/40 text-xs mr-1">I am</span>
+                  {(['male', 'female'] as const).map(g => (
+                    <button
+                      key={g}
+                      onClick={() => handleSetGender(g)}
+                      className={`px-5 py-2 rounded-xl text-sm font-semibold border transition-all capitalize ${
+                        gender === g
+                          ? 'bg-brand-600/80 border-brand-500 text-white'
+                          : 'bg-white/5 border-white/10 text-white/40 hover:text-white/70'
+                      }`}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                  {gender && (
+                    <button
+                      onClick={() => handleSetGender(gender)}
+                      className="text-white/20 text-xs hover:text-white/40 transition-colors"
+                    >
+                      clear
+                    </button>
+                  )}
+                </motion.div>
+
                 <motion.button
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ delay: 0.3 }}
                   whileHover={{ scale: 1.05, boxShadow: '0 0 50px rgba(168,85,247,0.5)' }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => joinQueue(selectedMatchType)}
+                  onClick={() => joinQueue(selectedMatchType, gender)}
                   className="bg-gradient-to-r from-brand-600 to-brand-500 text-white font-black text-xl px-16 py-5 rounded-3xl shadow-2xl flex items-center gap-3"
                 >
                   <Video className="w-6 h-6" />

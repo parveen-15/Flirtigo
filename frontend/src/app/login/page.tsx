@@ -27,7 +27,8 @@ export default function LoginPage() {
   const [ageConfirmed, setAgeConfirmed] = useState(false);
 
   const handleGoogleLogin = () => {
-    window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/google`;
+    // Route through the Next.js proxy so no backend URL is needed in the bundle
+    window.location.href = `/proxy/auth/google`;
   };
 
   const handleGuestLogin = async () => {

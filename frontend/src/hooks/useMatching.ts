@@ -9,11 +9,11 @@ export function useMatching() {
   const { setStatus, setMatch, clearMatch, setQueuedMatchType } = useMatchStore();
   const socketRef = useRef(getMatchingSocket());
 
-  const joinQueue = useCallback((matchType: MatchType) => {
+  const joinQueue = useCallback((matchType: MatchType, gender?: 'male' | 'female') => {
     const socket = socketRef.current;
     setStatus('searching');
     setQueuedMatchType(matchType);
-    socket.emit('join_queue', { matchType });
+    socket.emit('join_queue', { matchType, gender });
   }, [setStatus, setQueuedMatchType]);
 
   const skip = useCallback(() => {
@@ -32,7 +32,7 @@ export function useMatching() {
   useEffect(() => {
     const socket = socketRef.current;
 
-    socket.on('queue_joined', ({ matchType }: { matchType: string }) => {
+    socket.on('queue_joined', () => {
       setStatus('searching');
     });
 

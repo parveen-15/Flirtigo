@@ -66,7 +66,7 @@ export class MatchingGateway implements OnGatewayConnection, OnGatewayDisconnect
   @SubscribeMessage('join_queue')
   async handleJoinQueue(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { matchType: 'video' | 'voice' | 'text' },
+    @MessageBody() data: { matchType: 'video' | 'voice' | 'text'; gender?: 'male' | 'female' },
   ) {
     const userId = client.data.userId;
     const isGuest = client.data.isGuest;
@@ -113,6 +113,7 @@ export class MatchingGateway implements OnGatewayConnection, OnGatewayDisconnect
       isPremium,
       blockedUsers,
       joinedAt: Date.now(),
+      gender: data.gender,
     };
 
     client.emit('queue_joined', { matchType: data.matchType });

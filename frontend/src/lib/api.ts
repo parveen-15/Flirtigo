@@ -1,7 +1,11 @@
 import axios, { AxiosError, AxiosInstance } from 'axios';
 import { useAuthStore } from '@/store/authStore';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+// All HTTP API calls go through the /proxy path which Next.js rewrites to BACKEND_URL.
+// This avoids CORS issues and doesn't expose the backend URL in the JS bundle.
+// For WebSocket (Socket.io) and Google OAuth redirects, NEXT_PUBLIC_* vars are still used.
+const API_URL = '/proxy';
+export const DIRECT_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 export const api: AxiosInstance = axios.create({
   baseURL: API_URL,
