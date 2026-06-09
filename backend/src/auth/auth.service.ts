@@ -23,11 +23,6 @@ export class AuthService {
   ) {}
 
   async sendOtp(dto: SendOtpDto, ip: string) {
-    const isIndian = await this.geolocationService.isIndianIp(ip);
-    if (!isIndian && this.config.get('NODE_ENV') === 'production') {
-      throw new ForbiddenException('Flirtigo is available only for Indian users');
-    }
-
     const normalizedPhone = this.normalizePhone(dto.phone);
     await this.otpService.sendOtp(normalizedPhone);
     return { message: 'OTP sent successfully', phone: this.maskPhone(normalizedPhone) };
@@ -61,11 +56,6 @@ export class AuthService {
   }
 
   async googleLogin(googleUser: GoogleAuthDto, ip: string) {
-    const isIndian = await this.geolocationService.isIndianIp(ip);
-    if (!isIndian && this.config.get('NODE_ENV') === 'production') {
-      throw new ForbiddenException('Flirtigo is available only for Indian users');
-    }
-
     const locationData = await this.geolocationService.getLocationByIp(ip);
     let user = await this.usersService.findByGoogleId(googleUser.googleId);
     const isNewUser = !user;
