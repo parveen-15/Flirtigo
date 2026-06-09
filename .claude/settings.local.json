@@ -29,7 +29,28 @@
       "Bash(python3 -m json.tool)",
       "Bash(curl -s -X POST http://localhost:3001/api/auth/otp/send -H 'Content-Type: application/json' -d '{\"phone\":\"9876543210\"}')",
       "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\" http://localhost:3000)",
-      "Bash(lsof -ti:3000)"
+      "Bash(lsof -ti:3000)",
+      "Bash(git push *)",
+      "Bash(pkill -f \"node dist/main\")",
+      "Bash(pkill -f \"next start\")",
+      "Bash(nohup node dist/main.js)",
+      "Bash(echo \"backend PID $!\")",
+      "Bash(nohup node .next/standalone/server.js)",
+      "Bash(echo \"frontend PID $!\")",
+      "Read(//tmp/**)",
+      "Bash(nohup npx next start -p 3002)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3002/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001/api/auth/me)",
+      "Bash(curl -s -X POST http://localhost:3001/api/auth/guest -H \"Content-Type: application/json\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3002/proxy/api/auth/guest -X POST -H \"Content-Type: application/json\")",
+      "Bash(curl -s http://localhost:3002/proxy/api/auth/guest -X POST -H \"Content-Type: application/json\")",
+      "Bash(curl -sv http://localhost:3002/proxy/auth/google)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\" https://flirtigo-9bt7.vercel.app/proxy/api/auth/guest -X POST -H \"Content-Type: application/json\")",
+      "Bash(curl -sv https://flirtigo-9bt7.vercel.app/proxy/auth/google)",
+      "Bash(curl -s https://flirtigo-9bt7.vercel.app/proxy/api/auth/guest -X POST -H \"Content-Type: application/json\")",
+      "Bash(git commit *)"
     ]
   }
 }
