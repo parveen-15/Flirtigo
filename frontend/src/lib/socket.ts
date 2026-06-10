@@ -23,24 +23,32 @@ export const getMatchingSocket = (roomId?: string): Socket => {
 };
 
 export const getSignalingSocket = (roomId: string): Socket => {
-  if (signalingSocket) {
-    signalingSocket.disconnect();
+  const existing = signalingSocket as any;
+  if (existing && !existing.disconnected && existing._roomId === roomId) {
+    return signalingSocket!;
   }
-  signalingSocket = io(`${SOCKET_URL}/signaling`, {
+  signalingSocket?.disconnect();
+  const s = io(`${SOCKET_URL}/signaling`, {
     ...getAuthOptions(),
     query: { roomId },
   });
+  (s as any)._roomId = roomId;
+  signalingSocket = s;
   return signalingSocket;
 };
 
 export const getChatSocket = (roomId: string): Socket => {
-  if (chatSocket) {
-    chatSocket.disconnect();
+  const existing = chatSocket as any;
+  if (existing && !existing.disconnected && existing._roomId === roomId) {
+    return chatSocket!;
   }
-  chatSocket = io(`${SOCKET_URL}/chat`, {
+  chatSocket?.disconnect();
+  const s = io(`${SOCKET_URL}/chat`, {
     ...getAuthOptions(),
     query: { roomId },
   });
+  (s as any)._roomId = roomId;
+  chatSocket = s;
   return chatSocket;
 };
 

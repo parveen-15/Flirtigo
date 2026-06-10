@@ -124,7 +124,9 @@ export class MatchingGateway implements OnGatewayConnection, OnGatewayDisconnect
       const roomId = uuidv4();
       client.data.roomId = roomId;
 
-      const partnerSocket = (this.server.sockets as any).sockets?.get(partner.socketId);
+      // NestJS types @WebSocketServer() as Server but at runtime it's the Namespace.
+      // In Socket.io v4, Namespace.sockets is a Map<SocketId, Socket>.
+      const partnerSocket: Socket | undefined = (this.server as any).sockets.get(partner.socketId);
       if (partnerSocket) {
         partnerSocket.data.roomId = roomId;
         partnerSocket.join(roomId);

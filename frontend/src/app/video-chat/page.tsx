@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef, Component, ReactNode } from 'react';
+import { useState, useEffect, useRef, useMemo, Component, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Video, VideoOff, Mic, MicOff, PhoneOff, SkipForward,
@@ -123,8 +123,16 @@ function VideoChatInner() {
     localStorage.setItem('flirtigo-gender', g);
   };
 
-  const signalingSocket = currentMatch ? getSignalingSocket(currentMatch.roomId) : null;
-  const chatSocket = currentMatch ? getChatSocket(currentMatch.roomId) : null;
+  // Memoized by roomId — prevents socket recreation on every re-render (timer ticks, state changes).
+  // Recreation on every render was the root cause of broken WebRTC signaling.
+  const signalingSocket = useMemo(
+    () => currentMatch ? getSignalingSocket(currentMatch.roomId) : null,
+    [currentMatch?.roomId],
+  );
+  const chatSocket = useMemo(
+    () => currentMatch ? getChatSocket(currentMatch.roomId) : null,
+    [currentMatch?.roomId],
+  );
 
   // useWebRTC must be called unconditionally (React rules of hooks).
   // It's safe to pass null-coalesced values — the hook only fires WebRTC
