@@ -10,6 +10,7 @@ interface MatchState {
   isPartnerTyping: boolean;
   sessionDuration: number;
   queuedMatchType: MatchType | null;
+  queuedGender: 'male' | 'female' | null;
 
   setStatus: (status: ConnectionStatus) => void;
   setMatch: (match: Match) => void;
@@ -21,6 +22,7 @@ interface MatchState {
   incrementDuration: () => void;
   resetDuration: () => void;
   setQueuedMatchType: (type: MatchType | null) => void;
+  setQueuedGender: (gender: 'male' | 'female' | null) => void;
 }
 
 export const useMatchStore = create<MatchState>((set) => ({
@@ -32,6 +34,7 @@ export const useMatchStore = create<MatchState>((set) => ({
   isPartnerTyping: false,
   sessionDuration: 0,
   queuedMatchType: null,
+  queuedGender: null,
 
   setStatus: (status) => set({ status }),
 
@@ -60,4 +63,5 @@ export const useMatchStore = create<MatchState>((set) => ({
   resetDuration: () => set({ sessionDuration: 0 }),
 
   setQueuedMatchType: (queuedMatchType) => set({ queuedMatchType }),
+  setQueuedGender: (queuedGender) => set({ queuedGender }),
 }));

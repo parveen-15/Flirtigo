@@ -39,9 +39,12 @@ export interface Match {
 }
 
 export interface PartnerInfo {
+  userId?: string;
   displayName: string;
   city?: string;
   state?: string;
+  age?: number;
+  gender?: 'male' | 'female';
 }
 
 export interface Message {

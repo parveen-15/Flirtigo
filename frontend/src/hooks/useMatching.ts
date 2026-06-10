@@ -1,20 +1,28 @@
 'use client';
 import { useEffect, useCallback, useRef } from 'react';
 import { useMatchStore } from '@/store/matchStore';
+import { useProfileStore } from '@/store/profileStore';
 import { getMatchingSocket, disconnectMatching } from '@/lib/socket';
 import { MatchType } from '@/types';
 import toast from 'react-hot-toast';
 
 export function useMatching() {
-  const { setStatus, setMatch, clearMatch, setQueuedMatchType } = useMatchStore();
+  const { setStatus, setMatch, clearMatch, setQueuedMatchType, setQueuedGender } = useMatchStore();
   const socketRef = useRef(getMatchingSocket());
 
   const joinQueue = useCallback((matchType: MatchType, gender?: 'male' | 'female') => {
     const socket = socketRef.current;
+    const { displayName, age } = useProfileStore.getState();
     setStatus('searching');
     setQueuedMatchType(matchType);
-    socket.emit('join_queue', { matchType, gender });
-  }, [setStatus, setQueuedMatchType]);
+    setQueuedGender(gender ?? null);
+    socket.emit('join_queue', {
+      matchType,
+      gender,
+      displayName: displayName || undefined,
+      age: age || undefined,
+    });
+  }, [setStatus, setQueuedMatchType, setQueuedGender]);
 
   const skip = useCallback(() => {
     socketRef.current.emit('skip');
@@ -22,15 +30,35 @@ export function useMatching() {
     setStatus('idle');
   }, [clearMatch, setStatus]);
 
+  // Don't call disconnectMatching() here — keeping the socket alive lets the
+  // user click Start Matching again without creating a new connection.
+  // The socket is cleaned up when the component unmounts (see cleanup useEffect).
   const disconnect = useCallback(() => {
     socketRef.current.emit('disconnect_match');
     clearMatch();
     setStatus('idle');
-    disconnectMatching();
   }, [clearMatch, setStatus]);
 
   useEffect(() => {
     const socket = socketRef.current;
+
+    // On reconnect (socket got a new server-side ID), re-emit join_queue so the
+    // queue entry is updated with the fresh socket ID. Without this, the stale
+    // entry causes match_found to be delivered to the old (disconnected) socket.
+    const handleConnect = () => {
+      const { status, queuedMatchType, queuedGender } = useMatchStore.getState();
+      const { displayName, age } = useProfileStore.getState();
+      if (status === 'searching' && queuedMatchType) {
+        socket.emit('join_queue', {
+          matchType: queuedMatchType,
+          gender: queuedGender,
+          displayName: displayName || undefined,
+          age: age || undefined,
+        });
+      }
+    };
+
+    socket.on('connect', handleConnect);
 
     socket.on('queue_joined', () => {
       setStatus('searching');
@@ -77,6 +105,7 @@ export function useMatching() {
     });
 
     return () => {
+      socket.off('connect', handleConnect);
       socket.off('queue_joined');
       socket.off('match_found');
       socket.off('partner_disconnected');
@@ -87,6 +116,11 @@ export function useMatching() {
       socket.off('skip_limit_reached');
     };
   }, [setStatus, setMatch, clearMatch]);
+
+  // Disconnect the matching socket when the user leaves the page entirely.
+  useEffect(() => {
+    return () => { disconnectMatching(); };
+  }, []);
 
   return { joinQueue, skip, disconnect };
 }
