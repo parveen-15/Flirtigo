@@ -4,7 +4,7 @@ import {
   MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, UseGuards } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { MatchingService } from './matching.service';
@@ -20,6 +20,10 @@ import { v4 as uuidv4 } from 'uuid';
 export class MatchingGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
   private readonly logger = new Logger(MatchingGateway.name);
+
+  // Local socket registry — reliable alternative to server.sockets.get() whose
+  // behaviour varies depending on how NestJS injects the server instance.
+  private readonly socketMap = new Map<string, Socket>();
 
   constructor(
     private readonly matchingService: MatchingService,
@@ -37,23 +41,25 @@ export class MatchingGateway implements OnGatewayConnection, OnGatewayDisconnect
       });
       client.data.userId = payload.sub;
       client.data.isGuest = !!payload.isGuest;
-      this.logger.log(`Client connected: ${client.id} (user: ${payload.sub}, guest: ${!!payload.isGuest})`);
+      this.socketMap.set(client.id, client);
+      this.logger.log(`Connected: ${client.id} user=${payload.sub} guest=${!!payload.isGuest} total=${this.socketMap.size}`);
     } catch {
+      this.logger.warn(`Connection rejected (bad token): ${client.id}`);
       client.emit('error', { message: 'Unauthorized' });
       client.disconnect();
     }
   }
 
   async handleDisconnect(client: Socket) {
-    this.logger.log(`Client disconnected: ${client.id}`);
+    this.socketMap.delete(client.id);
+    this.logger.log(`Disconnected: ${client.id} total=${this.socketMap.size}`);
     const userId = client.data.userId;
     if (!userId) return;
 
-    // Remove from matching queue
     await this.matchingService.removeFromAllQueues(userId);
 
-    // If in a room, notify partner
-    const room = client.data.roomId;
+    // Use socket.rooms to find the match room (every socket is also in its own ID room).
+    const room = [...client.rooms].find(r => r !== client.id);
     if (room) {
       await this.matchingService.endMatch(room, userId);
       client.to(room).emit('partner_disconnected');
@@ -71,6 +77,8 @@ export class MatchingGateway implements OnGatewayConnection, OnGatewayDisconnect
     const userId = client.data.userId;
     const isGuest = client.data.isGuest;
     if (!userId) return;
+
+    this.logger.log(`join_queue: user=${userId} type=${data.matchType} gender=${data.gender} socket=${client.id}`);
 
     let displayName: string;
     let city: string | undefined;
@@ -120,44 +128,56 @@ export class MatchingGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     const partner = await this.matchingService.joinQueue(entry, data.matchType);
 
-    if (partner) {
-      const roomId = uuidv4();
-      client.data.roomId = roomId;
+    if (!partner) {
+      this.logger.log(`Queued (no match yet): user=${userId}`);
+      return;
+    }
 
-      // NestJS types @WebSocketServer() as Server but at runtime it's the Namespace.
-      // In Socket.io v4, Namespace.sockets is a Map<SocketId, Socket>.
-      const partnerSocket: Socket | undefined = (this.server as any).sockets.get(partner.socketId);
-      if (partnerSocket) {
-        partnerSocket.data.roomId = roomId;
-        partnerSocket.join(roomId);
-      }
-      client.join(roomId);
+    this.logger.log(`Match found! user=${userId} <-> partner=${partner.userId}`);
 
-      if (!isGuest) {
-        await this.matchingService.createMatch(userId, partner.userId, data.matchType, roomId);
-      }
+    const roomId = uuidv4();
+    client.data.roomId = roomId;
+    client.join(roomId);
 
-      if (isGuest) await this.guestSessionService.incrementMatches(userId);
+    const partnerSocket = this.socketMap.get(partner.socketId);
+    this.logger.log(`Partner socket lookup: id=${partner.socketId} found=${!!partnerSocket}`);
 
-      const myInfo = { displayName, city: entry.city, state: entry.state };
-      const partnerInfo = { displayName: partner.displayName, city: partner.city, state: partner.state };
+    if (partnerSocket) {
+      partnerSocket.data.roomId = roomId;
+      partnerSocket.join(roomId);
+    }
 
-      client.emit('match_found', { roomId, matchType: data.matchType, partner: partnerInfo, role: 'caller' });
-      if (partnerSocket) {
-        partnerSocket.emit('match_found', { roomId, matchType: data.matchType, partner: myInfo, role: 'callee' });
-      }
+    if (!isGuest) {
+      await this.matchingService.createMatch(userId, partner.userId, data.matchType, roomId);
+    }
+
+    if (isGuest) await this.guestSessionService.incrementMatches(userId);
+
+    const myInfo = { displayName, city: entry.city, state: entry.state };
+    const partnerInfo = { displayName: partner.displayName, city: partner.city, state: partner.state };
+
+    // Send match_found to the user who triggered this (role: caller)
+    client.emit('match_found', { roomId, matchType: data.matchType, partner: partnerInfo, role: 'caller' });
+
+    // Send match_found to partner — prefer direct socket (has room data set), fall back to server broadcast
+    if (partnerSocket) {
+      partnerSocket.emit('match_found', { roomId, matchType: data.matchType, partner: myInfo, role: 'callee' });
+    } else {
+      // Fallback: server.to(socketId) routes within the namespace without needing the socket object
+      this.logger.warn(`Partner socket not in local map (${partner.socketId}), using server.to() fallback`);
+      this.server.to(partner.socketId).emit('match_found', { roomId, matchType: data.matchType, partner: myInfo, role: 'callee' });
     }
   }
 
   @SubscribeMessage('skip')
   async handleSkip(@ConnectedSocket() client: Socket) {
     const userId = client.data.userId;
-    const roomId = client.data.roomId;
+    const room = [...client.rooms].find(r => r !== client.id);
 
-    if (roomId) {
-      await this.matchingService.endMatch(roomId, userId);
-      client.to(roomId).emit('partner_skipped');
-      client.leave(roomId);
+    if (room) {
+      await this.matchingService.endMatch(room, userId);
+      client.to(room).emit('partner_skipped');
+      client.leave(room);
       delete client.data.roomId;
     }
 
@@ -168,12 +188,12 @@ export class MatchingGateway implements OnGatewayConnection, OnGatewayDisconnect
   @SubscribeMessage('disconnect_match')
   async handleDisconnectMatch(@ConnectedSocket() client: Socket) {
     const userId = client.data.userId;
-    const roomId = client.data.roomId;
+    const room = [...client.rooms].find(r => r !== client.id);
 
-    if (roomId) {
-      await this.matchingService.endMatch(roomId, userId);
-      client.to(roomId).emit('partner_disconnected');
-      client.leave(roomId);
+    if (room) {
+      await this.matchingService.endMatch(room, userId);
+      client.to(room).emit('partner_disconnected');
+      client.leave(room);
       delete client.data.roomId;
     }
   }
