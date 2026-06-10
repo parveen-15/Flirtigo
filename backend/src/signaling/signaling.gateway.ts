@@ -38,9 +38,12 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
       if (roomId) {
         client.join(roomId);
         client.data.roomId = roomId;
-        this.logger.debug(`Signaling: ${client.id} joined room ${roomId}`);
+        this.logger.debug(`Signaling: ${client.id} user=${payload.sub} joined room ${roomId}`);
+      } else {
+        this.logger.debug(`Signaling: ${client.id} user=${payload.sub} connected (no room yet)`);
       }
-    } catch {
+    } catch (err) {
+      this.logger.warn(`Signaling: rejected ${client.id} — auth failed: ${err}`);
       client.disconnect();
     }
   }
@@ -53,24 +56,37 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
   }
 
   @SubscribeMessage('join_room')
-  handleJoinRoom(@ConnectedSocket() client: Socket, @MessageBody() data: { roomId: string }) {
+  async handleJoinRoom(@ConnectedSocket() client: Socket, @MessageBody() data: { roomId: string }) {
     client.join(data.roomId);
     client.data.roomId = data.roomId;
+    this.logger.debug(`Signaling: ${client.id} explicit join_room ${data.roomId}`);
+    // Notify existing room members that this client joined
     client.to(data.roomId).emit('peer_joined', { socketId: client.id });
+    // Notify the joining client if a peer is already in the room
+    // (handles the case where callee joins before caller's offer is sent)
+    const sockets = await this.server.in(data.roomId).fetchSockets();
+    const others = sockets.filter(s => s.id !== client.id);
+    if (others.length > 0) {
+      this.logger.debug(`Signaling: ${client.id} joined room with ${others.length} existing peer(s) — notifying joiner`);
+      client.emit('peer_joined', { socketId: others[0].id });
+    }
   }
 
   @SubscribeMessage('offer')
   handleOffer(@ConnectedSocket() client: Socket, @MessageBody() data: { offer: RTCSessionDescriptionInit; roomId: string }) {
+    this.logger.debug(`Signaling: offer from ${client.id} → room ${data.roomId}`);
     client.to(data.roomId).emit('offer', { offer: data.offer, from: client.id });
   }
 
   @SubscribeMessage('answer')
   handleAnswer(@ConnectedSocket() client: Socket, @MessageBody() data: { answer: RTCSessionDescriptionInit; roomId: string }) {
+    this.logger.debug(`Signaling: answer from ${client.id} → room ${data.roomId}`);
     client.to(data.roomId).emit('answer', { answer: data.answer, from: client.id });
   }
 
   @SubscribeMessage('ice_candidate')
   handleIceCandidate(@ConnectedSocket() client: Socket, @MessageBody() data: { candidate: RTCIceCandidateInit; roomId: string }) {
+    this.logger.debug(`Signaling: ICE from ${client.id} → room ${data.roomId}`);
     client.to(data.roomId).emit('ice_candidate', { candidate: data.candidate, from: client.id });
   }
 
@@ -81,9 +97,10 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
 
   @SubscribeMessage('get_ice_config')
   handleGetIceConfig(@ConnectedSocket() client: Socket) {
-    const iceServers = [
+    const iceServers: any[] = [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun.cloudflare.com:3478' },
     ];
 
     const turnUrl = this.config.get('TURN_SERVER_URL');
@@ -92,7 +109,15 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
         urls: turnUrl,
         username: this.config.get('TURN_SERVER_USERNAME'),
         credential: this.config.get('TURN_SERVER_CREDENTIAL'),
-      } as any);
+      });
+    } else {
+      // Free public TURN relay — works without credentials for NAT traversal.
+      // Replace with a private TURN server for production.
+      iceServers.push(
+        { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turns:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+      );
     }
 
     client.emit('ice_config', { iceServers });
