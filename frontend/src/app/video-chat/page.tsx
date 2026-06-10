@@ -119,10 +119,8 @@ function VideoChatInner() {
   });
 
   const handleSetGender = (g: 'male' | 'female') => {
-    const next = gender === g ? undefined : g;
-    setGender(next);
-    if (next) localStorage.setItem('flirtigo-gender', next);
-    else localStorage.removeItem('flirtigo-gender');
+    setGender(g);
+    localStorage.setItem('flirtigo-gender', g);
   };
 
   const signalingSocket = currentMatch ? getSignalingSocket(currentMatch.roomId) : null;
@@ -315,45 +313,50 @@ function VideoChatInner() {
                   </p>
                 </motion.div>
 
-                {/* Gender selector */}
+                {/* Gender selector — required before matching */}
                 <motion.div
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ delay: 0.25 }}
-                  className="flex items-center gap-2 mb-6"
+                  className="flex flex-col items-center gap-3 mb-6"
                 >
-                  <span className="text-white/40 text-xs mr-1">I am</span>
-                  {(['male', 'female'] as const).map(g => (
-                    <button
-                      key={g}
-                      onClick={() => handleSetGender(g)}
-                      className={`px-5 py-2 rounded-xl text-sm font-semibold border transition-all capitalize ${
-                        gender === g
-                          ? 'bg-brand-600/80 border-brand-500 text-white'
-                          : 'bg-white/5 border-white/10 text-white/40 hover:text-white/70'
-                      }`}
-                    >
-                      {g}
-                    </button>
-                  ))}
-                  {gender && (
-                    <button
-                      onClick={() => handleSetGender(gender)}
-                      className="text-white/20 text-xs hover:text-white/40 transition-colors"
-                    >
-                      clear
-                    </button>
-                  )}
+                  <span className={`text-sm font-semibold transition-colors ${gender ? 'text-white/40' : 'text-brand-400'}`}>
+                    {gender ? 'I am' : 'Select your gender to continue'}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    {([
+                      { value: 'male', emoji: '♂', label: 'Male' },
+                      { value: 'female', emoji: '♀', label: 'Female' },
+                    ] as const).map(({ value, emoji, label }) => (
+                      <button
+                        key={value}
+                        onClick={() => handleSetGender(value)}
+                        className={`flex items-center gap-2 px-7 py-3 rounded-2xl text-sm font-bold border-2 transition-all ${
+                          gender === value
+                            ? 'bg-brand-600 border-brand-400 text-white scale-105 shadow-lg shadow-brand-600/30'
+                            : 'bg-white/5 border-white/20 text-white/60 hover:border-brand-500/50 hover:text-white'
+                        } ${!gender ? 'animate-pulse-border' : ''}`}
+                      >
+                        <span className="text-base">{emoji}</span>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </motion.div>
 
                 <motion.button
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ delay: 0.3 }}
-                  whileHover={{ scale: 1.05, boxShadow: '0 0 50px rgba(168,85,247,0.5)' }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => joinQueue(selectedMatchType, gender)}
-                  className="bg-gradient-to-r from-brand-600 to-brand-500 text-white font-black text-xl px-16 py-5 rounded-3xl shadow-2xl flex items-center gap-3"
+                  whileHover={gender ? { scale: 1.05, boxShadow: '0 0 50px rgba(168,85,247,0.5)' } : {}}
+                  whileTap={gender ? { scale: 0.95 } : {}}
+                  onClick={() => gender && joinQueue(selectedMatchType, gender)}
+                  disabled={!gender}
+                  className={`font-black text-xl px-16 py-5 rounded-3xl shadow-2xl flex items-center gap-3 transition-all ${
+                    gender
+                      ? 'bg-gradient-to-r from-brand-600 to-brand-500 text-white cursor-pointer'
+                      : 'bg-white/10 text-white/30 cursor-not-allowed'
+                  }`}
                 >
                   <Video className="w-6 h-6" />
                   Start Matching
