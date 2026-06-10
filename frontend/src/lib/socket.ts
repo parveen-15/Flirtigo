@@ -8,15 +8,19 @@ let signalingSocket: Socket | null = null;
 let chatSocket: Socket | null = null;
 
 const getAuthOptions = () => ({
-  auth: { token: useAuthStore.getState().accessToken },
+  // Use a callback so every reconnection attempt sends the latest token
+  auth: (cb: (data: object) => void) => cb({ token: useAuthStore.getState().accessToken }),
   transports: ['websocket', 'polling'] as ('websocket' | 'polling')[],
   reconnection: true,
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
 });
 
-export const getMatchingSocket = (roomId?: string): Socket => {
-  if (!matchingSocket || !matchingSocket.connected) {
+export const getMatchingSocket = (): Socket => {
+  // Only create a new socket when none exists. Checking .connected causes a
+  // duplicate socket during the initial connecting phase (connected=false before
+  // the handshake completes). Socket.io handles reconnection internally.
+  if (!matchingSocket) {
     matchingSocket = io(`${SOCKET_URL}/matching`, getAuthOptions());
   }
   return matchingSocket;
