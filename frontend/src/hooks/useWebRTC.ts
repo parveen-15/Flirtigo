@@ -29,6 +29,10 @@ export function useWebRTC({
   const pendingStream = useRef<MediaStream | null>(null);
   // Always-current ref to startCall so handleIceConfig can invoke it without stale closure
   const startCallRef = useRef<((s: MediaStream) => Promise<void>) | null>(null);
+  // Caller offer coordination: only send offer once peer is in the room
+  const peerInRoom = useRef(false);
+  const offerSent = useRef(false);
+
   const [isConnected, setIsConnected] = useState(false);
   const [connectionState, setConnectionState] = useState<RTCPeerConnectionState>('new');
 
@@ -98,12 +102,18 @@ export function useWebRTC({
     }
     pendingStream.current = null;
 
+    // Always add local tracks first (idempotent via tracksAdded guard)
     addLocalStreamToPeer(stream);
 
     if (role === 'caller') {
-      const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
-      await pc.setLocalDescription(offer);
-      signalingSocket.emit('offer', { offer, roomId });
+      // Caller: only send offer once the peer is confirmed in the signaling room.
+      // If peer hasn't joined yet, handlePeerJoined will trigger the offer.
+      if (peerInRoom.current && !offerSent.current) {
+        const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+        await pc.setLocalDescription(offer);
+        offerSent.current = true;
+        signalingSocket.emit('offer', { offer, roomId });
+      }
     } else if (pendingOffer.current) {
       // Callee: the offer arrived before getUserMedia completed — process it now
       // that local tracks have just been added above.
@@ -137,6 +147,8 @@ export function useWebRTC({
     pendingCandidates.current = [];
     pendingStream.current = null;
     tracksAdded.current = false;
+    peerInRoom.current = false;
+    offerSent.current = false;
     setIsConnected(false);
   }, []);
 
@@ -151,6 +163,22 @@ export function useWebRTC({
         const s = pendingStream.current;
         pendingStream.current = null;
         startCallRef.current?.(s);
+      }
+    };
+
+    // peer_joined fires when the other party joins the signaling room.
+    // The backend also emits this back to the joining client if a peer is already present.
+    // This is the trigger for the CALLER to send its offer — guarantees the callee is in
+    // the room before the offer is forwarded, so it's never lost.
+    const handlePeerJoined = async () => {
+      peerInRoom.current = true;
+      if (role === 'caller' && !offerSent.current && peerConnection.current && localStream.current) {
+        addLocalStreamToPeer(localStream.current); // no-op if startCall already added tracks
+        const pc = peerConnection.current;
+        const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+        await pc.setLocalDescription(offer);
+        offerSent.current = true;
+        signalingSocket.emit('offer', { offer, roomId });
       }
     };
 
@@ -190,13 +218,12 @@ export function useWebRTC({
     };
 
     signalingSocket.on('ice_config', handleIceConfig);
+    signalingSocket.on('peer_joined', handlePeerJoined);
     signalingSocket.on('offer', handleOffer);
     signalingSocket.on('answer', handleAnswer);
     signalingSocket.on('ice_candidate', handleIceCandidate);
 
     // Explicitly join the room and request ICE config on connect (and reconnect).
-    // The query-param join in handleConnection on the server is the primary path,
-    // but this explicit emit is a reliable fallback that also handles reconnections.
     const handleSignalingConnect = () => {
       signalingSocket.emit('join_room', { roomId });
       signalingSocket.emit('get_ice_config');
@@ -210,10 +237,14 @@ export function useWebRTC({
 
     return () => {
       signalingSocket.off('ice_config', handleIceConfig);
+      signalingSocket.off('peer_joined', handlePeerJoined);
       signalingSocket.off('offer', handleOffer);
       signalingSocket.off('answer', handleAnswer);
       signalingSocket.off('ice_candidate', handleIceCandidate);
       signalingSocket.off('connect', handleSignalingConnect);
+      // Reset peer state so a new offer can be created if roomId changes
+      peerInRoom.current = false;
+      offerSent.current = false;
     };
   }, [signalingSocket, role, roomId, createPeerConnection, addLocalStreamToPeer, drainPendingCandidates]);
 
