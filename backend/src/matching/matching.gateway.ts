@@ -56,7 +56,10 @@ export class MatchingGateway implements OnGatewayConnection, OnGatewayDisconnect
     const userId = client.data.userId;
     if (!userId) return;
 
-    await this.matchingService.removeFromAllQueues(userId);
+    // Pass the socket ID so we only remove the entry that belongs to THIS socket.
+    // Without this, a reconnect that adds a fresh entry with the new socket ID would
+    // be wrongly removed when the old socket's disconnect event fires slightly later.
+    await this.matchingService.removeFromAllQueues(userId, client.id);
 
     // Use socket.rooms to find the match room (every socket is also in its own ID room).
     const room = [...client.rooms].find(r => r !== client.id);
@@ -72,7 +75,7 @@ export class MatchingGateway implements OnGatewayConnection, OnGatewayDisconnect
   @SubscribeMessage('join_queue')
   async handleJoinQueue(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { matchType: 'video' | 'voice' | 'text'; gender?: 'male' | 'female' },
+    @MessageBody() data: { matchType: 'video' | 'voice' | 'text'; gender?: 'male' | 'female'; displayName?: string; age?: number },
   ) {
     const userId = client.data.userId;
     const isGuest = client.data.isGuest;
@@ -92,7 +95,7 @@ export class MatchingGateway implements OnGatewayConnection, OnGatewayDisconnect
         client.emit('error', { message: 'Guest session expired. Please refresh.' });
         return;
       }
-      displayName = session.displayName;
+      displayName = data.displayName || session.displayName;
       city = session.city;
       state = session.state;
     } else {
@@ -122,6 +125,7 @@ export class MatchingGateway implements OnGatewayConnection, OnGatewayDisconnect
       blockedUsers,
       joinedAt: Date.now(),
       gender: data.gender,
+      age: data.age,
     };
 
     client.emit('queue_joined', { matchType: data.matchType });
@@ -153,8 +157,8 @@ export class MatchingGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     if (isGuest) await this.guestSessionService.incrementMatches(userId);
 
-    const myInfo = { displayName, city: entry.city, state: entry.state };
-    const partnerInfo = { displayName: partner.displayName, city: partner.city, state: partner.state };
+    const myInfo = { userId, displayName, city: entry.city, state: entry.state, age: data.age, gender: data.gender };
+    const partnerInfo = { userId: partner.userId, displayName: partner.displayName, city: partner.city, state: partner.state, age: partner.age, gender: partner.gender };
 
     // Send match_found to the user who triggered this (role: caller)
     client.emit('match_found', { roomId, matchType: data.matchType, partner: partnerInfo, role: 'caller' });

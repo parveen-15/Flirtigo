@@ -8,6 +8,7 @@ import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { ChatService } from './chat.service';
+import { v4 as uuidv4 } from 'uuid';
 
 @WebSocketGateway({
   namespace: '/chat',
@@ -74,13 +75,30 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
-    const message = await this.chatService.saveMessage(data.matchId, userId, data.content);
+    let messageId: string;
+    let timestamp: string;
+
+    if (data.matchId) {
+      try {
+        const message = await this.chatService.saveMessage(data.matchId, userId, data.content);
+        messageId = message.id;
+        timestamp = message.created_at;
+      } catch {
+        // DB save failed (e.g. matchId invalid) — broadcast anyway
+        messageId = uuidv4();
+        timestamp = new Date().toISOString();
+      }
+    } else {
+      // Guest session — no persistent match record, broadcast without DB save
+      messageId = uuidv4();
+      timestamp = new Date().toISOString();
+    }
 
     this.server.to(roomId).emit('new_message', {
-      id: message.id,
+      id: messageId,
       content: data.content,
       senderId: userId,
-      timestamp: message.created_at,
+      timestamp,
     });
   }
 

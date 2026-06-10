@@ -18,6 +18,7 @@ interface QueueEntry {
   blockedUsers: string[];
   joinedAt: number;
   gender?: 'male' | 'female';
+  age?: number;
 }
 
 
@@ -118,14 +119,24 @@ export class MatchingService implements OnModuleInit {
     return null;
   }
 
-  async removeFromAllQueues(userId: string) {
+  // socketIdFilter: when provided, only removes the entry if its socketId matches.
+  // This prevents a reconnecting socket's disconnect event from wiping the new
+  // queue entry that was added with the fresh socket ID.
+  async removeFromAllQueues(userId: string, socketIdFilter?: string) {
     const matchTypes: MatchType[] = ['video', 'voice', 'text'];
     const genders: Gender[] = ['male', 'female', 'any'];
     for (const type of matchTypes) {
       for (const gender of genders) {
         const key = this.getQueueKey(type, gender);
         const member = await this.findInQueue(key, userId);
-        if (member) await this.redis.zRem(key, member);
+        if (!member) continue;
+        if (socketIdFilter) {
+          try {
+            const entry: QueueEntry = JSON.parse(member);
+            if (entry.socketId !== socketIdFilter) continue; // stale disconnect — skip
+          } catch { continue; }
+        }
+        await this.redis.zRem(key, member);
       }
     }
   }
