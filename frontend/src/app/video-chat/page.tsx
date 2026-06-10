@@ -3,8 +3,8 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Video, VideoOff, Mic, MicOff, PhoneOff, SkipForward,
-  MessageSquare, Flag, Settings, ChevronRight, Heart,
-  Users, MapPin, Maximize, Minimize,
+  MessageSquare, Flag, ChevronRight, Heart,
+  Users, MapPin,
 } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
@@ -17,8 +17,44 @@ import { formatDuration } from '@/lib/utils';
 import { MatchType } from '@/types';
 import { guestApi, reportsApi } from '@/lib/api';
 
+// Loading screen shown while anonymous session is being created
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center gap-4">
+      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
+        <Heart className="w-6 h-6 text-white fill-white" />
+      </div>
+      <div className="w-8 h-8 border-2 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
+      <span className="text-white/40 text-sm">Connecting...</span>
+    </div>
+  );
+}
+
+// Outer shell — creates anonymous session FIRST, then mounts the chat UI.
+// This ensures the socket in useMatching() always connects with a valid token.
 export default function VideoChatPage() {
-  const { isAuthenticated, isGuest, setGuestSession } = useAuthStore();
+  const { setGuestSession } = useAuthStore();
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const { isAuthenticated, isGuest } = useAuthStore.getState();
+    if (isAuthenticated || isGuest) { setReady(true); return; }
+    guestApi.createSession()
+      .then(res => {
+        const { accessToken, guestId, displayName, city, state, skipLimit } = res.data;
+        setGuestSession(accessToken, { guestId, displayName, city, state, skipLimit });
+        setReady(true);
+      })
+      .catch(() => toast.error('Could not connect. Please refresh.'));
+  }, [setGuestSession]);
+
+  if (!ready) return <LoadingScreen />;
+  return <VideoChatInner />;
+}
+
+// Inner component — only mounts after the token is in the store,
+// so useMatching()'s socket connects with a valid JWT on the first try.
+function VideoChatInner() {
   const { status, currentMatch, messages, mediaState, partnerMediaState, isPartnerTyping, sessionDuration, setMediaState, addMessage, setPartnerTyping, setPartnerMediaState, incrementDuration, resetDuration } = useMatchStore();
   const { joinQueue, skip, disconnect } = useMatching();
 
@@ -27,7 +63,6 @@ export default function VideoChatPage() {
   const chatInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const [ready, setReady] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMessage, setChatMessage] = useState('');
   const [showReportModal, setShowReportModal] = useState(false);
@@ -44,21 +79,6 @@ export default function VideoChatPage() {
     if (next) localStorage.setItem('flirtigo-gender', next);
     else localStorage.removeItem('flirtigo-gender');
   };
-
-  // Auto-create anonymous session if not already authenticated
-  useEffect(() => {
-    const { isAuthenticated: auth, isGuest: guest } = useAuthStore.getState();
-    if (auth || guest) { setReady(true); return; }
-    guestApi.createSession()
-      .then(res => {
-        const { accessToken, guestId, displayName, city, state, skipLimit } = res.data;
-        setGuestSession(accessToken, { guestId, displayName, city, state, skipLimit });
-        setReady(true);
-      })
-      .catch(() => {
-        toast.error('Could not connect. Please refresh.');
-      });
-  }, [setGuestSession]);
 
   const signalingSocket = currentMatch ? getSignalingSocket(currentMatch.roomId) : null;
   const chatSocket = currentMatch ? getChatSocket(currentMatch.roomId) : null;
@@ -162,18 +182,7 @@ export default function VideoChatPage() {
     }
   };
 
-  // Loading state while creating anonymous session
-  if (!ready) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center gap-4">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
-          <Heart className="w-6 h-6 text-white fill-white" />
-        </div>
-        <div className="w-8 h-8 border-2 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
-        <span className="text-white/40 text-sm">Connecting...</span>
-      </div>
-    );
-  }
+
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] flex flex-col">
