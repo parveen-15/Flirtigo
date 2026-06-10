@@ -1,10 +1,10 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Component, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Video, VideoOff, Mic, MicOff, PhoneOff, SkipForward,
   MessageSquare, Flag, ChevronRight, Heart,
-  Users, MapPin,
+  Users, MapPin, RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
@@ -17,8 +17,31 @@ import { formatDuration } from '@/lib/utils';
 import { MatchType } from '@/types';
 import { guestApi, reportsApi } from '@/lib/api';
 
-// Loading screen shown while anonymous session is being created
-function LoadingScreen() {
+// Catches any render crash inside VideoChatInner and shows a retry button
+class ErrorBoundary extends Component<{ children: ReactNode }, { crashed: boolean }> {
+  state = { crashed: false };
+  static getDerivedStateFromError() { return { crashed: true }; }
+  render() {
+    if (this.state.crashed) {
+      return (
+        <div className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center gap-4 px-4">
+          <Heart className="w-10 h-10 text-brand-400 fill-brand-400/20" />
+          <h2 className="text-white font-bold text-lg">Something went wrong</h2>
+          <p className="text-white/40 text-sm text-center">A connection error occurred. Please try again.</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="flex items-center gap-2 bg-brand-600 text-white px-6 py-3 rounded-2xl font-semibold mt-2"
+          >
+            <RefreshCw className="w-4 h-4" /> Retry
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function LoadingScreen({ onRetry }: { onRetry?: () => void }) {
   return (
     <div className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center gap-4">
       <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
@@ -30,26 +53,48 @@ function LoadingScreen() {
   );
 }
 
+function ErrorScreen({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center gap-4 px-4">
+      <Heart className="w-10 h-10 text-brand-400 fill-brand-400/20" />
+      <h2 className="text-white font-bold text-lg">Could not connect</h2>
+      <p className="text-white/40 text-sm text-center">
+        The server is taking too long to respond. Check your connection and try again.
+      </p>
+      <button
+        onClick={onRetry}
+        className="flex items-center gap-2 bg-brand-600 text-white px-6 py-3 rounded-2xl font-semibold mt-2"
+      >
+        <RefreshCw className="w-4 h-4" /> Try Again
+      </button>
+    </div>
+  );
+}
+
 // Outer shell — creates anonymous session FIRST, then mounts the chat UI.
 // This ensures the socket in useMatching() always connects with a valid token.
 export default function VideoChatPage() {
   const { setGuestSession } = useAuthStore();
-  const [ready, setReady] = useState(false);
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
 
-  useEffect(() => {
+  const createSession = () => {
+    setState('loading');
     const { isAuthenticated, isGuest } = useAuthStore.getState();
-    if (isAuthenticated || isGuest) { setReady(true); return; }
+    if (isAuthenticated || isGuest) { setState('ready'); return; }
     guestApi.createSession()
       .then(res => {
-        const { accessToken, guestId, displayName, city, state, skipLimit } = res.data;
-        setGuestSession(accessToken, { guestId, displayName, city, state, skipLimit });
-        setReady(true);
+        const { accessToken, guestId, displayName, city, state: city_state, skipLimit } = res.data;
+        setGuestSession(accessToken, { guestId, displayName, city, state: city_state, skipLimit });
+        setState('ready');
       })
-      .catch(() => toast.error('Could not connect. Please refresh.'));
-  }, [setGuestSession]);
+      .catch(() => setState('error'));
+  };
 
-  if (!ready) return <LoadingScreen />;
-  return <VideoChatInner />;
+  useEffect(() => { createSession(); }, []);
+
+  if (state === 'loading') return <LoadingScreen />;
+  if (state === 'error') return <ErrorScreen onRetry={createSession} />;
+  return <ErrorBoundary><VideoChatInner /></ErrorBoundary>;
 }
 
 // Inner component — only mounts after the token is in the store,
