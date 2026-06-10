@@ -83,10 +83,13 @@ function VideoChatInner() {
   const signalingSocket = currentMatch ? getSignalingSocket(currentMatch.roomId) : null;
   const chatSocket = currentMatch ? getChatSocket(currentMatch.roomId) : null;
 
-  const webRTC = currentMatch && signalingSocket ? useWebRTC({
-    roomId: currentMatch.roomId,
-    role: currentMatch.role,
-    signalingSocket,
+  // useWebRTC must be called unconditionally (React rules of hooks).
+  // It's safe to pass null-coalesced values — the hook only fires WebRTC
+  // logic when signaling events arrive, which only happens after a real match.
+  const webRTC = useWebRTC({
+    roomId: currentMatch?.roomId ?? '',
+    role: currentMatch?.role ?? 'callee',
+    signalingSocket: signalingSocket as any,
     onRemoteStream: (stream) => {
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream;
     },
@@ -95,7 +98,7 @@ function VideoChatInner() {
         toast.error('Connection lost. Finding new match...');
       }
     },
-  }) : null;
+  });
 
   useEffect(() => {
     if (!currentMatch || !webRTC) return;
