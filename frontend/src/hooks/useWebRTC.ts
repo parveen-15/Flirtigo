@@ -94,8 +94,10 @@ export function useWebRTC({
     setIsConnected(false);
   }, []);
 
-  // Socket event handlers
+  // Socket event handlers — only run when a real signaling socket exists
   useEffect(() => {
+    if (!signalingSocket) return;
+
     const handleIceConfig = ({ iceServers }: { iceServers: RTCIceServer[] }) => {
       peerConnection.current = createPeerConnection(iceServers);
     };
