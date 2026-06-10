@@ -3,8 +3,8 @@ import { useState, useEffect, useRef, useMemo, useCallback, Component, ReactNode
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Video, VideoOff, Mic, MicOff, PhoneOff, SkipForward,
-  MessageSquare, Flag, ChevronRight, Heart,
-  Users, MapPin, RefreshCw, User, Send,
+  MessageSquare, Flag, Heart, Users, MapPin, RefreshCw,
+  Send, Volume2, VolumeX, Pencil, Check, X,
 } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
@@ -36,43 +36,47 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { crashed: boolea
   }
 }
 
-// ─── Profile Setup Form ───────────────────────────────────────────────────────
-function ProfileSetup({ onDone }: { onDone: () => void }) {
-  const { setProfile } = useProfileStore();
-  const [name, setName] = useState('');
-  const [age, setAge] = useState('');
-  const [gender, setGender] = useState<'male' | 'female' | null>(null);
+// ─── Profile Setup / Edit Form ────────────────────────────────────────────────
+function ProfileForm({ onDone, editMode = false }: { onDone: () => void; editMode?: boolean }) {
+  const { displayName, age, gender, setProfile } = useProfileStore();
+  const [name, setName] = useState(editMode ? displayName : '');
+  const [ageVal, setAgeVal] = useState(editMode && age ? String(age) : '');
+  const [genderVal, setGenderVal] = useState<'male' | 'female' | null>(editMode ? gender : null);
   const [error, setError] = useState('');
 
   const handleSubmit = () => {
     if (!name.trim()) { setError('Please enter your name'); return; }
-    const ageNum = parseInt(age);
-    if (!age || isNaN(ageNum) || ageNum < 18 || ageNum > 80) { setError('Age must be 18–80'); return; }
-    if (!gender) { setError('Please select your gender'); return; }
-    setProfile({ displayName: name.trim(), age: ageNum, gender });
+    const ageNum = parseInt(ageVal);
+    if (!ageVal || isNaN(ageNum) || ageNum < 18 || ageNum > 80) { setError('Age must be 18–80'); return; }
+    if (!genderVal) { setError('Please select your gender'); return; }
+    setProfile({ displayName: name.trim(), age: ageNum, gender: genderVal });
     onDone();
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center px-4">
+    <div className={editMode ? '' : 'min-h-screen bg-[#0a0a0f] flex items-center justify-center px-4'}>
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-sm"
       >
-        {/* Logo */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center shadow-lg">
-            <Heart className="w-5 h-5 text-white fill-white" />
+        {!editMode && (
+          <div className="flex items-center justify-center gap-2 mb-8">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center shadow-lg">
+              <Heart className="w-5 h-5 text-white fill-white" />
+            </div>
+            <span className="text-2xl font-black bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">Flirtigo</span>
           </div>
-          <span className="text-2xl font-black bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">Flirtigo</span>
-        </div>
+        )}
 
-        <div className="glass rounded-3xl p-8 border border-white/10">
-          <h1 className="text-2xl font-black text-white text-center mb-1">Create Your Profile</h1>
-          <p className="text-white/40 text-sm text-center mb-7">Others will see this when you match</p>
+        <div className={editMode ? '' : 'glass rounded-3xl p-8 border border-white/10'}>
+          {!editMode && (
+            <>
+              <h1 className="text-2xl font-black text-white text-center mb-1">Create Your Profile</h1>
+              <p className="text-white/40 text-sm text-center mb-7">Others will see this when you match</p>
+            </>
+          )}
 
-          {/* Name */}
           <div className="mb-4">
             <label className="text-white/50 text-xs font-semibold uppercase tracking-wide mb-2 block">Your Name</label>
             <input
@@ -85,13 +89,12 @@ function ProfileSetup({ onDone }: { onDone: () => void }) {
             />
           </div>
 
-          {/* Age */}
           <div className="mb-4">
             <label className="text-white/50 text-xs font-semibold uppercase tracking-wide mb-2 block">Age (18+)</label>
             <input
               type="number"
-              value={age}
-              onChange={e => { setAge(e.target.value); setError(''); }}
+              value={ageVal}
+              onChange={e => { setAgeVal(e.target.value); setError(''); }}
               placeholder="Your age"
               min={18}
               max={80}
@@ -99,7 +102,6 @@ function ProfileSetup({ onDone }: { onDone: () => void }) {
             />
           </div>
 
-          {/* Gender */}
           <div className="mb-6">
             <label className="text-white/50 text-xs font-semibold uppercase tracking-wide mb-2 block">Gender</label>
             <div className="grid grid-cols-2 gap-3">
@@ -109,9 +111,9 @@ function ProfileSetup({ onDone }: { onDone: () => void }) {
               ] as const).map(({ value, emoji, label }) => (
                 <button
                   key={value}
-                  onClick={() => { setGender(value); setError(''); }}
+                  onClick={() => { setGenderVal(value); setError(''); }}
                   className={`flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-semibold text-sm transition-all ${
-                    gender === value
+                    genderVal === value
                       ? 'bg-gradient-to-r from-pink-600 to-purple-600 border-pink-400 text-white'
                       : 'bg-white/5 border-white/15 text-white/60 hover:border-white/30'
                   }`}
@@ -122,20 +124,28 @@ function ProfileSetup({ onDone }: { onDone: () => void }) {
             </div>
           </div>
 
-          {error && (
-            <p className="text-red-400 text-xs text-center mb-4">{error}</p>
-          )}
+          {error && <p className="text-red-400 text-xs text-center mb-4">{error}</p>}
 
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            onClick={handleSubmit}
-            className="w-full bg-gradient-to-r from-pink-600 to-purple-600 text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-pink-500/25 transition-all"
-          >
-            Start Chatting →
-          </motion.button>
+          <div className={`flex gap-2 ${editMode ? '' : ''}`}>
+            {editMode && (
+              <button
+                onClick={onDone}
+                className="flex-1 bg-white/5 border border-white/10 text-white/60 font-semibold py-3 rounded-xl text-sm hover:bg-white/10 transition-all"
+              >
+                Cancel
+              </button>
+            )}
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={handleSubmit}
+              className={`${editMode ? 'flex-1' : 'w-full'} bg-gradient-to-r from-pink-600 to-purple-600 text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-pink-500/25 transition-all`}
+            >
+              {editMode ? 'Save Changes' : 'Start Chatting →'}
+            </motion.button>
+          </div>
         </div>
 
-        <p className="text-white/20 text-xs text-center mt-4">18+ only · Anonymous · For India</p>
+        {!editMode && <p className="text-white/20 text-xs text-center mt-4">18+ only · Anonymous · For India</p>}
       </motion.div>
     </div>
   );
@@ -164,22 +174,22 @@ export default function VideoChatPage() {
       .catch(() => setState('error'));
   };
 
+  const handleProfileDone = () => {
+    const { isAuthenticated, isGuest } = useAuthStore.getState();
+    if (isAuthenticated || isGuest) { setState('ready'); return; }
+    setState('loading');
+    guestApi.createSession()
+      .then(res => {
+        const { accessToken, guestId, displayName, city, state: st, skipLimit } = res.data;
+        setGuestSession(accessToken, { guestId, displayName, city, state: st, skipLimit });
+        setState('ready');
+      })
+      .catch(() => setState('error'));
+  };
+
   useEffect(() => { init(); }, []);
 
-  if (state === 'profile') {
-    return <ProfileSetup onDone={() => {
-      const { isAuthenticated, isGuest } = useAuthStore.getState();
-      if (isAuthenticated || isGuest) { setState('ready'); return; }
-      setState('loading');
-      guestApi.createSession()
-        .then(res => {
-          const { accessToken, guestId, displayName, city, state: st, skipLimit } = res.data;
-          setGuestSession(accessToken, { guestId, displayName, city, state: st, skipLimit });
-          setState('ready');
-        })
-        .catch(() => setState('error'));
-    }} />;
-  }
+  if (state === 'profile') return <ProfileForm onDone={handleProfileDone} />;
 
   if (state === 'loading') {
     return (
@@ -219,13 +229,21 @@ function VideoChatInner() {
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  // Store the remote stream so it can be attached even if ontrack fires before video element mounts
+  const remoteStreamRef = useRef<MediaStream | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMessage, setChatMessage] = useState('');
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  // Track muted state separately — autoplay may block audio on mobile browsers
+  const [isRemoteMuted, setIsRemoteMuted] = useState(false);
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
 
   const myId = guestId || authUser?.id || '';
+  // My sender ID for marking own messages
+  const mySenderId = authUser?.id || guestId || '';
 
   const signalingSocket = useMemo(
     () => currentMatch ? getSignalingSocket(currentMatch.roomId) : null,
@@ -236,12 +254,28 @@ function VideoChatInner() {
     [currentMatch?.roomId],
   );
 
-  const handleRemoteStream = useCallback((stream: MediaStream) => {
-    if (remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = stream;
-      remoteVideoRef.current.play().catch(() => {});
+  // Attach stream to video element — call whenever stream or video element might be newly available
+  const attachRemoteStream = useCallback((stream: MediaStream) => {
+    remoteStreamRef.current = stream;
+    const el = remoteVideoRef.current;
+    if (!el) return;
+    if (el.srcObject !== stream) {
+      el.srcObject = stream;
     }
+    el.play().then(() => {
+      setAutoplayBlocked(false);
+    }).catch(() => {
+      // Autoplay blocked (common on mobile) — mute and retry, show unmute button
+      el.muted = true;
+      setIsRemoteMuted(true);
+      setAutoplayBlocked(true);
+      el.play().catch(() => {});
+    });
   }, []);
+
+  const handleRemoteStream = useCallback((stream: MediaStream) => {
+    attachRemoteStream(stream);
+  }, [attachRemoteStream]);
 
   const handleConnectionStateChange = useCallback((state: RTCPeerConnectionState) => {
     if (state === 'failed' || state === 'disconnected') {
@@ -257,7 +291,7 @@ function VideoChatInner() {
     onConnectionStateChange: handleConnectionStateChange,
   });
 
-  // Start camera when matched
+  // Start camera/mic when matched
   useEffect(() => {
     if (!currentMatch) return;
     (async () => {
@@ -274,6 +308,13 @@ function VideoChatInner() {
     })();
   }, [currentMatch?.roomId]);
 
+  // When the remote video element mounts (status changes to connected), attach any buffered stream
+  useEffect(() => {
+    if ((status === 'connected' || status === 'connecting') && remoteStreamRef.current && remoteVideoRef.current) {
+      attachRemoteStream(remoteStreamRef.current);
+    }
+  }, [status, currentMatch?.roomId, attachRemoteStream]);
+
   // Session timer
   useEffect(() => {
     if (status !== 'connected') { resetDuration(); return; }
@@ -286,7 +327,7 @@ function VideoChatInner() {
     if (!chatSocket || !currentMatch) return;
     chatSocket.emit('join_chat_room', { roomId: currentMatch.roomId, matchId: currentMatch.id || '' });
     chatSocket.on('new_message', (msg: any) => {
-      addMessage({ ...msg, isOwn: msg.senderId === (useAuthStore.getState().user?.id) });
+      addMessage({ ...msg, isOwn: msg.senderId === mySenderId });
     });
     chatSocket.on('partner_typing', ({ typing }: { typing: boolean }) => setPartnerTyping(typing));
     chatSocket.on('partner_media_state', (state: any) => setPartnerMediaState(state));
@@ -295,12 +336,30 @@ function VideoChatInner() {
       chatSocket.off('partner_typing');
       chatSocket.off('partner_media_state');
     };
-  }, [currentMatch?.roomId, chatSocket]);
+  }, [currentMatch?.roomId, chatSocket, mySenderId]);
 
   // Auto-scroll chat
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Clear remote stream on disconnect
+  useEffect(() => {
+    if (!currentMatch) {
+      remoteStreamRef.current = null;
+      setAutoplayBlocked(false);
+      setIsRemoteMuted(false);
+    }
+  }, [currentMatch]);
+
+  const handleUnmuteRemote = () => {
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.muted = false;
+      setIsRemoteMuted(false);
+      setAutoplayBlocked(false);
+      remoteVideoRef.current.play().catch(() => {});
+    }
+  };
 
   const handleToggleVideo = () => {
     const next = !mediaState.video;
@@ -324,6 +383,7 @@ function VideoChatInner() {
 
   const handleSkip = () => {
     webRTC?.stopMedia();
+    remoteStreamRef.current = null;
     skip();
     setTimeout(() => joinQueue('video', myGender ?? undefined), 300);
   };
@@ -366,14 +426,18 @@ function VideoChatInner() {
           </div>
         </div>
 
-        {/* My profile pill */}
-        <div className="flex items-center gap-1.5 bg-white/5 rounded-full px-3 py-1.5 border border-white/10">
+        {/* My profile pill — click to edit */}
+        <button
+          onClick={() => setShowEditProfile(true)}
+          className="flex items-center gap-1.5 bg-white/5 rounded-full px-3 py-1.5 border border-white/10 hover:border-pink-500/30 transition-all group"
+        >
           <div className="w-5 h-5 rounded-full bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center text-[9px] font-bold text-white">
             {myName ? myName[0].toUpperCase() : 'Y'}
           </div>
           <span className="text-white/60 text-xs font-medium hidden sm:block">{myName || 'You'}</span>
           {myAge && <span className="text-white/30 text-xs hidden sm:block">· {myAge}</span>}
-        </div>
+          <Pencil className="w-3 h-3 text-white/20 group-hover:text-pink-400 transition-colors hidden sm:block" />
+        </button>
       </div>
 
       {/* Main Content */}
@@ -395,7 +459,6 @@ function VideoChatInner() {
                   transition={{ delay: 0.1, type: 'spring' }}
                   className="text-center mb-8"
                 >
-                  {/* Avatar */}
                   <div className="w-28 h-28 rounded-full bg-gradient-to-br from-pink-600/30 to-purple-600/20 border-2 border-pink-500/30 flex items-center justify-center mx-auto mb-5 relative">
                     <span className="text-4xl font-black text-white/80">
                       {myName ? myName[0].toUpperCase() : '?'}
@@ -403,7 +466,6 @@ function VideoChatInner() {
                     <div className="absolute inset-0 rounded-full border-2 border-pink-500/20 animate-ping" />
                   </div>
 
-                  {/* My info */}
                   <div className="mb-2">
                     <span className="text-white font-bold text-xl">{myName || 'You'}</span>
                     {myAge && <span className="text-white/40 text-sm ml-2">{myAge} yrs</span>}
@@ -414,9 +476,7 @@ function VideoChatInner() {
                     )}
                   </div>
 
-                  {myId && (
-                    <p className="text-white/20 text-xs font-mono">ID: {myId.slice(0, 16)}…</p>
-                  )}
+                  {myId && <p className="text-white/20 text-xs font-mono">ID: {myId.slice(0, 16)}…</p>}
 
                   <h2 className="text-3xl font-black text-white mt-6 mb-2">Ready to connect?</h2>
                   <p className="text-white/40 text-sm">Tap Start to meet someone new via video chat</p>
@@ -468,9 +528,29 @@ function VideoChatInner() {
           {/* Connected State */}
           {(status === 'connected' || status === 'connecting') && currentMatch && (
             <>
-              {/* Remote Video */}
+              {/* Remote Video — always in DOM when connected */}
               <div className="absolute inset-0 bg-black">
-                <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                <video
+                  ref={remoteVideoRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+
+                {/* Autoplay-blocked overlay — tap to hear */}
+                {autoplayBlocked && (
+                  <motion.button
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    onClick={handleUnmuteRemote}
+                    className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm z-10 gap-3"
+                  >
+                    <div className="w-16 h-16 rounded-full bg-white/10 border-2 border-white/30 flex items-center justify-center">
+                      <VolumeX className="w-8 h-8 text-white" />
+                    </div>
+                    <span className="text-white font-bold">Tap to unmute</span>
+                  </motion.button>
+                )}
 
                 {/* Partner info overlay */}
                 <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-md rounded-2xl px-3 py-2 border border-white/10">
@@ -503,6 +583,12 @@ function VideoChatInner() {
                   {!partnerMediaState.audio && (
                     <div className="bg-black/50 rounded-full p-1.5"><MicOff className="w-4 h-4 text-red-400" /></div>
                   )}
+                  {/* Unmute button (persistent, for when user wants to toggle) */}
+                  {isRemoteMuted && !autoplayBlocked && (
+                    <button onClick={handleUnmuteRemote} className="bg-black/50 rounded-full p-1.5">
+                      <Volume2 className="w-4 h-4 text-yellow-400" />
+                    </button>
+                  )}
                 </div>
 
                 {/* Local video PiP */}
@@ -517,7 +603,6 @@ function VideoChatInner() {
                       <VideoOff className="w-8 h-8 text-white/30" />
                     </div>
                   )}
-                  {/* My name tag on PiP */}
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-2 py-1">
                     <p className="text-white text-[9px] font-semibold">{myName || 'You'}{myAge ? ` · ${myAge}` : ''}</p>
                   </div>
@@ -545,7 +630,7 @@ function VideoChatInner() {
                     <span className="text-white/40 text-xs">{mediaState.audio ? 'Mute' : 'Unmute'}</span>
                   </button>
 
-                  <button onClick={() => { webRTC?.stopMedia(); disconnect(); }} className="flex flex-col items-center gap-1">
+                  <button onClick={() => { webRTC?.stopMedia(); remoteStreamRef.current = null; disconnect(); }} className="flex flex-col items-center gap-1">
                     <div className="w-16 h-16 rounded-2xl bg-red-500 hover:bg-red-600 flex items-center justify-center transition-all shadow-lg">
                       <PhoneOff className="w-7 h-7 text-white" />
                     </div>
@@ -598,7 +683,9 @@ function VideoChatInner() {
                   <MessageSquare className="w-4 h-4 text-pink-400" />
                   <span className="font-bold text-white text-sm">Chat with {partner?.displayName}</span>
                 </div>
-                <button onClick={() => setChatOpen(false)} className="text-white/30 hover:text-white/60 transition-colors text-xs">✕</button>
+                <button onClick={() => setChatOpen(false)} className="text-white/30 hover:text-white/60 transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -617,7 +704,9 @@ function VideoChatInner() {
                 {isPartnerTyping && (
                   <div className="flex justify-start">
                     <div className="bg-white/10 rounded-2xl rounded-bl-sm px-4 py-2.5 flex items-center gap-1">
-                      {[0,1,2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-white/50 inline-block animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />)}
+                      {[0,1,2].map(i => (
+                        <span key={i} className="w-1.5 h-1.5 rounded-full bg-white/50 inline-block animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                      ))}
                     </div>
                   </div>
                 )}
@@ -630,13 +719,25 @@ function VideoChatInner() {
                     type="text"
                     placeholder="Type a message..."
                     value={chatMessage}
-                    onChange={e => { setChatMessage(e.target.value); chatSocket?.emit(e.target.value ? 'typing_start' : 'typing_stop'); }}
-                    onKeyDown={e => { if (e.key === 'Enter') { handleSendMessage(); chatSocket?.emit('typing_stop'); } }}
+                    onChange={e => {
+                      setChatMessage(e.target.value);
+                      chatSocket?.emit(e.target.value ? 'typing_start' : 'typing_stop');
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        handleSendMessage();
+                        chatSocket?.emit('typing_stop');
+                      }
+                    }}
                     onBlur={() => chatSocket?.emit('typing_stop')}
                     className="flex-1 bg-transparent text-white placeholder-white/20 outline-none text-sm"
                     maxLength={500}
                   />
-                  <button onClick={handleSendMessage} disabled={!chatMessage.trim()} className="w-8 h-8 rounded-lg bg-gradient-to-r from-pink-500 to-purple-600 disabled:opacity-30 flex items-center justify-center transition-opacity">
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={!chatMessage.trim()}
+                    className="w-8 h-8 rounded-lg bg-gradient-to-r from-pink-500 to-purple-600 disabled:opacity-30 flex items-center justify-center transition-opacity"
+                  >
                     <Send className="w-3.5 h-3.5 text-white" />
                   </button>
                 </div>
@@ -645,6 +746,35 @@ function VideoChatInner() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Edit Profile Modal */}
+      <AnimatePresence>
+        {showEditProfile && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setShowEditProfile(false)}
+          >
+            <motion.div
+              initial={{ y: 30, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 30, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-[#0d0820] rounded-3xl p-7 w-full max-w-sm border border-white/10 shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-black text-white text-lg">Edit Profile</h3>
+                <button onClick={() => setShowEditProfile(false)} className="text-white/30 hover:text-white/60">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <ProfileForm editMode onDone={() => setShowEditProfile(false)} />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Report Modal */}
       <AnimatePresence>
