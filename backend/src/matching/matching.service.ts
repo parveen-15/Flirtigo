@@ -20,8 +20,6 @@ interface QueueEntry {
   gender?: 'male' | 'female';
 }
 
-// After this many ms without a preferred-gender match, fall back to same-gender
-const FALLBACK_WAIT_MS = 15_000;
 
 @Injectable()
 export class MatchingService implements OnModuleInit {
@@ -69,47 +67,45 @@ export class MatchingService implements OnModuleInit {
   }
 
   async findMatch(entry: QueueEntry, matchType: MatchType): Promise<QueueEntry | null> {
-    const waited = Date.now() - entry.joinedAt;
     const myGender: Gender = entry.gender ?? 'any';
 
-    // Build ordered list of queues to search
-    let searchOrder: Gender[];
-    if (myGender === 'male') {
-      // Male → prefer female, then neutral; fall back to male after wait
-      searchOrder = ['female', 'any'];
-      if (waited >= FALLBACK_WAIT_MS) searchOrder.push('male');
-    } else if (myGender === 'female') {
-      // Female → prefer male, then neutral; fall back to female after wait
-      searchOrder = ['male', 'any'];
-      if (waited >= FALLBACK_WAIT_MS) searchOrder.push('female');
-    } else {
-      // No preference → search all
-      searchOrder = ['any', 'male', 'female'];
-    }
+    const searchOrder: Gender[] =
+      myGender === 'male' ? ['female', 'any', 'male'] :
+      myGender === 'female' ? ['male', 'any', 'female'] :
+      ['any', 'male', 'female'];
 
     for (const targetGender of searchOrder) {
       const queueKey = this.getQueueKey(matchType, targetGender);
-      const candidates = await this.redis.zRangeWithScores(queueKey, 0, 50);
 
-      for (const candidate of candidates) {
-        const candidateEntry: QueueEntry = JSON.parse(candidate.value);
+      // Use zRange (plain string array) — avoids node-redis v5 zRangeWithScores shape changes
+      const members = await this.redis.zRange(queueKey, 0, 50);
+      this.logger.debug(`findMatch[${entry.userId.slice(0,8)}] key=${queueKey} members=${members.length}`);
+
+      for (const member of members) {
+        let candidateEntry: QueueEntry;
+        try { candidateEntry = JSON.parse(member); }
+        catch { continue; }
 
         if (candidateEntry.userId === entry.userId) continue;
         if (entry.blockedUsers.includes(candidateEntry.userId)) continue;
         if (candidateEntry.blockedUsers.includes(entry.userId)) continue;
 
-        // Atomically claim this candidate
-        const removed = await this.redis.zRem(queueKey, candidate.value);
-        if (removed === 0) continue; // Claimed by someone else
+        // Atomic claim
+        const removed = await this.redis.zRem(queueKey, member);
+        this.logger.debug(`findMatch: zRem ${candidateEntry.userId.slice(0,8)} removed=${removed}`);
+        if (removed === 0) continue;
 
         // Remove current user from their own queue
         const myQueue = this.getQueueKey(matchType, myGender);
         const myEntry = await this.findInQueue(myQueue, entry.userId);
         if (myEntry) await this.redis.zRem(myQueue, myEntry);
 
+        this.logger.log(`findMatch: MATCHED ${entry.userId.slice(0,8)} <-> ${candidateEntry.userId.slice(0,8)}`);
         return candidateEntry;
       }
     }
+
+    this.logger.debug(`findMatch[${entry.userId.slice(0,8)}]: no match`);
     return null;
   }
 
